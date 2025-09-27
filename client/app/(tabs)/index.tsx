@@ -1,4 +1,4 @@
-import { getAccounts } from '../../src/lib/api';
+import { getAccounts, provisionDemo } from '../../src/lib/api';
 import { useEffect, useState } from 'react';
 import { View, Text, FlatList, Pressable, StyleSheet, ActivityIndicator } from 'react-native';
 import { Link } from 'expo-router';
@@ -22,6 +22,20 @@ export default function AccountsScreen() {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // 🔹 called by the ListEmptyComponent button
+  const handleProvision = async () => {
+    try {
+      setLoading(true);
+      await provisionDemo();
+      const data = await getAccounts();
+      setAccounts(data);
+    } catch (e: any) {
+      setError(e?.message || 'Provision failed');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator size="large" /></View>;
@@ -56,6 +70,19 @@ export default function AccountsScreen() {
             </Pressable>
           </Link>
         )}
+        // 🔻 EXACTLY HERE
+        ListEmptyComponent={
+          <View style={{ alignItems: 'center', marginTop: 24 }}>
+            <Text>No accounts found.</Text>
+            <Pressable onPress={handleProvision}
+              style={{ backgroundColor: '#0f62fe', padding: 12, borderRadius: 10, marginTop: 12 }}>
+              <Text style={{ color: '#fff', fontWeight: '700' }}>
+                Create Demo Customer + Accounts
+              </Text>
+            </Pressable>
+          </View>
+        }
+        contentContainerStyle={{ paddingBottom: 20 }}
       />
     </View>
   );

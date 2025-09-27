@@ -47,3 +47,23 @@ export const simulateCancel = (payload: {
       return r.json();
     });
   
+    export const provisionDemo = async () => {
+      const base = (process.env.EXPO_PUBLIC_API_URL || '').trim().replace(/[<>"']/g, '');
+      const res = await fetch(`${base}/api/demo/provision`, { method: 'POST' });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Provision failed — HTTP ${res.status}${text ? `: ${text.slice(0,200)}` : ''}`);
+      }
+      return res.json();
+    };
+    
+    export const seedNessieSubs = async (accountId: string) => {
+      const base = (process.env.EXPO_PUBLIC_API_URL || '').trim().replace(/[<>"']/g, '');
+      const res = await fetch(`${base}/api/subsense/seed-nessie/${encodeURIComponent(accountId)}`, { method: 'POST' });
+      if (!res.ok) {
+        const text = await res.text().catch(() => '');
+        throw new Error(`Seed failed — HTTP ${res.status}${text ? `: ${text.slice(0,200)}` : ''}`);
+      }
+      return res.json();
+    };
+    

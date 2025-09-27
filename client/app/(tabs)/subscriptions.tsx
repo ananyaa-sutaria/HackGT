@@ -10,24 +10,23 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import {
-  scanSubscriptions,
-  seedDemoSubs,
-  cancelSubscription,
-} from '../../src/lib/api';
+
+import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
 
 type Sub = {
   merchant: string;
   amount: number;
-  cadence: 'monthly' | string;
+  cadence: string; // e.g., 'monthly'
   nextDate?: string;
 };
 
 export default function SubscriptionsScreen() {
   const { accountId } = useLocalSearchParams<{ accountId: string }>();
+
   const [subs, setSubs] = useState<Sub[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -57,33 +56,31 @@ export default function SubscriptionsScreen() {
     load();
   }, [load]);
 
+  const totals = useMemo(() => {
+    const monthly = subs.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
+    return { monthly, yearly: monthly * 12 };
+  }, [subs]);
+
   const handleSeed = useCallback(async () => {
     try {
-      await seedDemoSubs(String(accountId));
+      setSeeding(true);
+      // This endpoint provisions a demo customer + accounts
+      // and seeds purchases on the Checking account in Nessie.
+      const result = await provisionDemo();
       await load();
+
+      // If this account still has no subs, let the user know to switch to Checking.
+      Alert.alert(
+        'Demo data ready',
+        result?.message ??
+          'Demo data created. If this account still looks empty, switch to your Checking account.'
+      );
     } catch (e: any) {
-      Alert.alert('Seed failed', e?.message || 'Please try again.');
+      Alert.alert('Seed failed', String(e?.message || e));
+    } finally {
+      setSeeding(false);
     }
-  }, [accountId, load]);
-
-  const handleCancel = useCallback(
-    async (merchant: string) => {
-      try {
-        await cancelSubscription(String(accountId), merchant);
-        await load();
-        Alert.alert('Canceled', `${merchant} removed`);
-      } catch (e: any) {
-        Alert.alert('Cancel failed', e?.message || 'Please try again.');
-      }
-    },
-    [accountId, load]
-  );
-
-  const totals = useMemo(() => {
-    const m = subs.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    const y = m * 12;
-    return { monthly: m, yearly: y };
-  }, [subs]);
+  }, [load]);
 
   if (loading) {
     return (
@@ -107,7 +104,6 @@ export default function SubscriptionsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Totals bar */}
       <View style={styles.totalsBar}>
         <Text style={styles.totalsText}>
           Potential savings: ${totals.monthly.toFixed(2)}/mo (${totals.yearly.toFixed(2)}/yr)
@@ -122,14 +118,12 @@ export default function SubscriptionsScreen() {
         renderItem={({ item }) => (
           <View style={styles.card}>
             <Text style={styles.name}>{item.merchant}</Text>
-            <Text style={styles.line}>${item.amount} / {item.cadence}</Text>
+            <Text style={styles.line}>
+              ${Number(item.amount).toFixed(2)} / {item.cadence}
+            </Text>
             {item.nextDate ? <Text style={styles.line}>Next: {item.nextDate}</Text> : null}
 
             <View style={styles.row}>
-              <Pressable onPress={() => handleCancel(item.merchant)} style={styles.dangerBtn}>
-                <Text style={styles.btnText}>Cancel</Text>
-              </Pressable>
-
               <Link
                 href={{
                   pathname: '/subscriptionDetail',
@@ -148,15 +142,22 @@ export default function SubscriptionsScreen() {
           <View style={{ alignItems: 'center', marginTop: 24 }}>
             <Text>No subscriptions detected.</Text>
             {accountId ? (
-              <Pressable onPress={handleSeed} style={[styles.primaryBtn, { marginTop: 12 }]}>
-                <Text style={styles.primaryBtnText}>Create demo subscriptions</Text>
+              <Pressable
+                onPress={handleSeed}
+                disabled={seeding}
+                style={[
+                  styles.primaryBtn,
+                  { marginTop: 12, opacity: seeding ? 0.6 : 1 },
+                ]}
+              >
+                <Text style={styles.primaryBtnText}>
+                  {seeding ? 'Seeding…' : 'Create demo subscriptions'}
+                </Text>
               </Pressable>
             ) : null}
           </View>
         }
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 20 }}
       />
     </View>
@@ -171,8 +172,6 @@ const styles = StyleSheet.create({
   name:{ fontSize:18, fontWeight:'700', marginBottom:6 },
   line:{ color:'#333' },
   row:{ flexDirection:'row', gap:12, marginTop:12 },
-  dangerBtn:{ backgroundColor:'#ff3b30', paddingVertical:10, paddingHorizontal:14, borderRadius:10 },
-  btnText:{ color:'#fff', fontWeight:'700' },
   secondaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:10, paddingHorizontal:14, borderRadius:10 },
   secondaryBtnText:{ color:'#fff', fontWeight:'700' },
   primaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:12, paddingHorizontal:16, borderRadius:10 },
