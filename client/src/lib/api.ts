@@ -1,27 +1,29 @@
-const BASE = process.env.EXPO_PUBLIC_API_URL;
-console.log('API BASE =', BASE); // Verify it's not undefined
+// client/src/lib/api.ts
+const RAW = (process.env.EXPO_PUBLIC_API_URL || '').trim();
+const BASE = RAW.replace(/[<>"']/g, ''); // sanitize
+console.log('API BASE =', BASE || '(unset)');
 
 async function http<T = any>(path: string, init?: RequestInit): Promise<T> {
-  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL is missing. Check client/.env and restart with -c.');
-  const res = await fetch(`${BASE}${path}`, init);
+  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL missing (client/.env)');
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { Accept: 'application/json', ...(init?.headers || {}) },
+    ...init,
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
   return res.json();
 }
 
-export function getAccounts() {
-  return http('/api/transactions/accounts');
-}
+export const ping = () => http('/health');
+export const getAccounts = () => http('/api/transactions/accounts');
 
-export function scanSubscriptions(accountId: string) {
-  return http(`/api/subsense/scan/${accountId}`);
-}
+export const scanSubscriptions = (accountId: string) =>
+  http(`/api/subsense/scan/${encodeURIComponent(accountId)}`);
 
-export function simulateCancel(payload: {
+export const simulateCancel = (payload: {
   fromAccountId: string; toAccountId: string; amount: number;
-}) {
-  return http('/api/subsense/simulate-cancel', {
+}) =>
+  http('/api/subsense/simulate-cancel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-}
