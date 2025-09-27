@@ -1,43 +1,37 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { useLocalSearchParams, Link } from 'expo-router';
 import {
-  View,
-  Text,
-  FlatList,
-  Pressable,
-  StyleSheet,
-  ActivityIndicator,
-  RefreshControl,
-  Alert,
+  View, Text, FlatList, Pressable, StyleSheet,
+  ActivityIndicator, RefreshControl, Alert
 } from 'react-native';
-
 import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
 
 type Sub = {
   merchant: string;
-  amount: number;
-  cadence: string; // e.g., 'monthly'
+  amount: number | string;
+  cadence?: string;          // 'monthly' | 'yearly' | 'weekly' | 'biweekly' | 'quarterly' | etc.
   nextDate?: string;
 };
 
 export default function SubscriptionsScreen() {
   const { accountId } = useLocalSearchParams<{ accountId: string }>();
-
   const [subs, setSubs] = useState<Sub[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    if (!accountId) {
-      setLoading(false);
-      return;
-    }
+    if (!accountId) { setLoading(false); return; }
     try {
       setError(null);
       const data = await scanSubscriptions(String(accountId));
-      setSubs(Array.isArray(data) ? data : []);
+      // Ensure cadence + numeric amount are sane
+      const clean = (Array.isArray(data) ? data : []).map((s: Sub) => ({
+        ...s,
+        cadence: (s.cadence || 'monthly').toLowerCase(),
+        amount: cleanAmount(s.amount),
+      }));
+      setSubs(clean);
     } catch (e: any) {
       setError(e?.message || 'Failed to load subscriptions');
     } finally {
@@ -46,50 +40,32 @@ export default function SubscriptionsScreen() {
     }
   }, [accountId]);
 
-  useEffect(() => {
-    setLoading(true);
-    load();
-  }, [load]);
+  useEffect(() => { setLoading(true); load(); }, [load]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    load();
-  }, [load]);
+  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
+  // --- Totals (monthly + annual) ---
   const totals = useMemo(() => {
-    const monthly = subs.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-    return { monthly, yearly: monthly * 12 };
+    const monthly = subs.reduce((sum, s) => sum + toMonthly(cleanAmount(s.amount), s.cadence), 0);
+    const annual = monthly * 12;
+    return { monthly, annual };
   }, [subs]);
 
   const handleSeed = useCallback(async () => {
     try {
-      setSeeding(true);
-      // This endpoint provisions a demo customer + accounts
-      // and seeds purchases on the Checking account in Nessie.
-      const result = await provisionDemo();
+      await provisionDemo();
       await load();
-
-      // If this account still has no subs, let the user know to switch to Checking.
-      Alert.alert(
-        'Demo data ready',
-        result?.message ??
-          'Demo data created. If this account still looks empty, switch to your Checking account.'
-      );
+      if (!subs.length) {
+        Alert.alert('Demo created', 'Seeded sample subscriptions. If this account is empty, switch to your Checking account.');
+      }
     } catch (e: any) {
-      Alert.alert('Seed failed', String(e?.message || e));
-    } finally {
-      setSeeding(false);
+      Alert.alert('Seed failed', e?.message || 'Please try again.');
     }
-  }, [load]);
+  }, [load, subs.length]);
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
+    return <View style={styles.center}><ActivityIndicator size="large" /></View>;
   }
-
   if (error) {
     return (
       <View style={styles.center}>
@@ -104,9 +80,10 @@ export default function SubscriptionsScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Totals bar */}
       <View style={styles.totalsBar}>
         <Text style={styles.totalsText}>
-          Potential savings: ${totals.monthly.toFixed(2)}/mo (${totals.yearly.toFixed(2)}/yr)
+          Total: {fmt(totals.monthly)} / mo  ({fmt(totals.annual)} / yr)
         </Text>
       </View>
 
@@ -119,11 +96,10 @@ export default function SubscriptionsScreen() {
           <View style={styles.card}>
             <Text style={styles.name}>{item.merchant}</Text>
             <Text style={styles.line}>
-              ${Number(item.amount).toFixed(2)} / {item.cadence}
+              {fmt(cleanAmount(item.amount))} / {(item.cadence || 'monthly')}
             </Text>
             {item.nextDate ? <Text style={styles.line}>Next: {item.nextDate}</Text> : null}
-
-            <View style={styles.row}>
+            <View style={{ marginTop: 10 }}>
               <Link
                 href={{
                   pathname: '/subscriptionDetail',
@@ -141,20 +117,9 @@ export default function SubscriptionsScreen() {
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 24 }}>
             <Text>No subscriptions detected.</Text>
-            {accountId ? (
-              <Pressable
-                onPress={handleSeed}
-                disabled={seeding}
-                style={[
-                  styles.primaryBtn,
-                  { marginTop: 12, opacity: seeding ? 0.6 : 1 },
-                ]}
-              >
-                <Text style={styles.primaryBtnText}>
-                  {seeding ? 'Seeding…' : 'Create demo subscriptions'}
-                </Text>
-              </Pressable>
-            ) : null}
+            <Pressable onPress={handleSeed} style={[styles.primaryBtn, { marginTop: 12 }]}>
+              <Text style={styles.primaryBtnText}>Create demo subscriptions</Text>
+            </Pressable>
           </View>
         }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
@@ -164,6 +129,37 @@ export default function SubscriptionsScreen() {
   );
 }
 
+/* ---------- Helpers ---------- */
+
+// Convert a charge with cadence → monthly amount
+function toMonthly(amount: number, cadence?: string) {
+  const c = (cadence || 'monthly').toLowerCase();
+  switch (c) {
+    case 'weekly':    return (amount * 52) / 12;
+    case 'biweekly':  return (amount * 26) / 12;
+    case 'quarterly': return amount / 3;
+    case 'yearly':
+    case 'annual':    return amount / 12;
+    case 'monthly':
+    default:          return amount;
+  }
+}
+
+// Make sure amounts are numeric even if strings like "$9.99"
+function cleanAmount(a: any) {
+  if (typeof a === 'string') return Number(a.replace(/[^0-9.\-]/g, '')) || 0;
+  return Number(a) || 0;
+}
+
+// Currency formatting with safe fallback
+function fmt(v: number) {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v);
+  } catch {
+    return `$${v.toFixed(2)}`;
+  }
+}
+
 const styles = StyleSheet.create({
   container:{ flex:1, padding:20, backgroundColor:'#fff' },
   center:{ flex:1, alignItems:'center', justifyContent:'center', padding:24 },
@@ -171,8 +167,7 @@ const styles = StyleSheet.create({
   card:{ padding:16, backgroundColor:'#e9f0ff', marginBottom:12, borderRadius:12 },
   name:{ fontSize:18, fontWeight:'700', marginBottom:6 },
   line:{ color:'#333' },
-  row:{ flexDirection:'row', gap:12, marginTop:12 },
-  secondaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:10, paddingHorizontal:14, borderRadius:10 },
+  secondaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center', alignSelf:'flex-start' },
   secondaryBtnText:{ color:'#fff', fontWeight:'700' },
   primaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:12, paddingHorizontal:16, borderRadius:10 },
   primaryBtnText:{ color:'#fff', fontWeight:'700' },

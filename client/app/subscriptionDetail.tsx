@@ -1,92 +1,150 @@
-import { useLocalSearchParams } from 'expo-router';
-import { View, Text, Pressable, StyleSheet, Alert, TouchableOpacity, Modal, TouchableWithoutFeedback } from 'react-native';
-import { simulateCancel } from '../src/lib/api';
-import React, { useRef, useEffect, useState, ReactNode } from 'react';
+import { useMemo } from 'react';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router';
 
-
-
-export const subscriptionDropdown = ({children} : {children: ReactNode}) => {
-  return<>{children}</>
-}
-
-export const subscriptionOption = ({
-  onSelect,
-  children,
-}: {
-  onSelect: () => void;
-  children: ReactNode;
-}) => {
-  return (
-    <TouchableOpacity onPress={onSelect} style={stylesSubscription.subscriptionOption}>
-      {children}
-    </TouchableOpacity>
-)
+type Sub = {
+  merchant?: string;
+  amount?: number | string;
+  cadence?: string;
+  nextDate?: string;
 };
 
-export default function SubscriptionDetailScreen() {
-  const { accountId, sub } = useLocalSearchParams<{ accountId: string; sub: string }>();
-  const subscription = JSON.parse(sub || '{}');
+export default function SubscriptionDetail() {
+  const { sub } = useLocalSearchParams<{ sub?: string }>();
 
-  const handleCancel = async () => {
+  const data: Sub | null = useMemo(() => {
     try {
-      await simulateCancel({
-        fromAccountId: accountId!,
-        toAccountId: accountId!, // In real app, this would be a savings account
-        amount: subscription.amount,
-      });
-      Alert.alert('Success', `Simulated cancellation of ${subscription.merchant}`);
-    } catch (err) {
-      Alert.alert('Error', 'Failed to simulate cancellation');
+      if (!sub) return null;
+      const parsed = JSON.parse(Array.isArray(sub) ? sub[0] : sub);
+      return parsed ?? null;
+    } catch {
+      return null;
     }
-  };
+  }, [sub]);
+
+  const { merchant, monthly, annual, nextDate, cadenceLabel } = useMemo(() => {
+    const m = (data?.merchant || 'Subscription') as string;
+    const amt = cleanAmount(data?.amount);
+    const cad = (data?.cadence || 'monthly').toLowerCase();
+    const perMonth = toMonthly(amt, cad);
+    return {
+      merchant: m,
+      monthly: perMonth,
+      annual: perMonth * 12,
+      nextDate: data?.nextDate,
+      cadenceLabel: cad,
+    };
+  }, [data]);
+
+  if (!data) {
+    return (
+      <View style={s.center}>
+        <Text style={s.err}>No subscription data provided.</Text>
+        <Pressable onPress={() => router.back()} style={s.secondaryBtn}>
+          <Text style={s.secondaryBtnText}>Go back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>{subscription.merchant}</Text>
-      <Text style={styles.detail}>Amount: ${subscription.amount} / {subscription.cadence}</Text>
-      <Text style={styles.detail}>Next Due: {subscription.nextDate}</Text>
-      <Text style={styles.detail}>Annual Total: ${subscription.annualCost}</Text>
-
-      <Pressable onPress={handleCancel} style={styles.button}>
-        <Text style={styles.buttonText}>Simulate Cancel</Text>
+    <View style={s.container}>
+      <Pressable onPress={() => router.back()} hitSlop={8}>
+        <Text style={s.back}>← Back</Text>
       </Pressable>
+
+      <Text style={s.title}>{merchant}</Text>
+      <Text style={s.subtitle}>
+        {fmt(monthly)} / mo  ({fmt(annual)} / yr)
+      </Text>
+
+      <View style={s.card}>
+        <Row label="Plan cadence" value={prettyCadence(cadenceLabel)} />
+        <Row label="Plan price"   value={fmt(cleanAmount(data.amount))} />
+        <Row label="Next due"     value={nextDate || '—'} />
+      </View>
+
+      <View style={s.actions}>
+        <Pressable style={s.primaryBtn}>
+          <Text style={s.primaryBtnText}>Cancel</Text>
+        </Pressable>
+        <Pressable style={s.secondaryBtn}>
+          <Text style={s.secondaryBtnText}>Downgrade</Text>
+        </Pressable>
+        <Pressable style={s.tertiaryBtn}>
+          <Text style={s.tertiaryBtnText}>Snooze 30 days</Text>
+        </Pressable>
+      </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#fff' },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-  detail: { fontSize: 16, marginVertical: 4 },
-  button: {
-    backgroundColor: '#0f62fe',
-    padding: 15,
-    borderRadius: 10,
-    marginTop: 30,
-    alignItems: 'center',
-  },
-  buttonText: { color: '#fff', fontWeight: '700' },
-});
+/* ---------- helpers ---------- */
 
-const stylesSubscription = StyleSheet.create({
-  modelOverlay:{
-    flex: 1,
-    justifyContent: 'flex-start',
-    alignItems: 'flex-start',
-    backgroundColor: 'transparent',
-  },
-  subscriptionDropdown:{
-      position: 'absolute',
-    width: 80,
-    backgroundColor: 'white',
-    borderRadius: 5,
-    padding: 10,
-    shadowColor: '#000',
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  subscriptionOption: {
-    padding: 5,
+function cleanAmount(a: any) {
+  if (typeof a === 'string') return Number(a.replace(/[^0-9.\-]/g, '')) || 0;
+  return Number(a) || 0;
+}
+
+function toMonthly(amount: number, cadence?: string) {
+  const c = (cadence || 'monthly').toLowerCase();
+  switch (c) {
+    case 'weekly':    return (amount * 52) / 12;
+    case 'biweekly':  return (amount * 26) / 12;
+    case 'quarterly': return amount / 3;
+    case 'yearly':
+    case 'annual':    return amount / 12;
+    case 'monthly':
+    default:          return amount;
   }
+}
+
+function fmt(v: number) {
+  try {
+    return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v);
+  } catch {
+    return `$${v.toFixed(2)}`;
+  }
+}
+
+function prettyCadence(c: string) {
+  const map: Record<string,string> = {
+    monthly: 'Monthly',
+    yearly: 'Yearly',
+    annual: 'Yearly',
+    weekly: 'Weekly',
+    biweekly: 'Every 2 weeks',
+    quarterly: 'Quarterly',
+  };
+  return map[c] || c[0]?.toUpperCase() + c.slice(1);
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.row}>
+      <Text style={s.rowLabel}>{label}</Text>
+      <Text style={s.rowValue}>{value}</Text>
+    </View>
+  );
+}
+
+/* ---------- styles ---------- */
+const s = StyleSheet.create({
+  container:{ flex:1, padding:20, backgroundColor:'#fff' },
+  center:{ flex:1, alignItems:'center', justifyContent:'center', padding:24 },
+  back:{ color:'#0f62fe', marginBottom:8, fontWeight:'600' },
+  title:{ fontSize:24, fontWeight:'800' },
+  subtitle:{ color:'#374151', marginTop:4, marginBottom:16, fontWeight:'600' },
+  card:{ backgroundColor:'#F8FAFC', borderRadius:12, padding:16, borderWidth:1, borderColor:'#E5E7EB' },
+  row:{ flexDirection:'row', justifyContent:'space-between', marginBottom:10 },
+  rowLabel:{ color:'#6B7280' },
+  rowValue:{ color:'#111827', fontWeight:'600' },
+  actions:{ flexDirection:'row', gap:10, marginTop:16, flexWrap:'wrap' },
+  primaryBtn:{ backgroundColor:'#0F62FE', paddingVertical:12, paddingHorizontal:16, borderRadius:10 },
+  primaryBtnText:{ color:'#fff', fontWeight:'700' },
+  secondaryBtn:{ backgroundColor:'#111827', paddingVertical:10, paddingHorizontal:14, borderRadius:10 },
+  secondaryBtnText:{ color:'#fff', fontWeight:'700' },
+  tertiaryBtn:{ backgroundColor:'#E5E7EB', paddingVertical:10, paddingHorizontal:14, borderRadius:10 },
+  tertiaryBtnText:{ color:'#111827', fontWeight:'700' },
+  err:{ color:'#b00020', marginBottom:8 },
 });
