@@ -37,11 +37,13 @@ export async function getToken(): Promise<string | null> {
 }
 
 export async function clearToken() {
-  if (await canUseSecureStore()) {
-    await SecureStore.deleteItemAsync(KEY);
-  } else if (Platform.OS === 'web' && typeof window !== 'undefined') {
-    window.localStorage.removeItem(KEY);
-  } else {
-    await AsyncStorage.removeItem(KEY);
+    try {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
+        window.localStorage.removeItem(KEY);
+      } else if (await SecureStore.isAvailableAsync()) {
+        await SecureStore.deleteItemAsync(KEY);
+      } else {
+        await AsyncStorage.removeItem(KEY);
+      }
+    } catch {}
   }
-}
