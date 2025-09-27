@@ -27,3 +27,23 @@ export const simulateCancel = (payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+
+
+  export const seedDemoSubs = (accountId: string) =>
+    fetch(`${process.env.EXPO_PUBLIC_API_URL?.replace(/[<>"']/g, '')}/api/subsense/seed/${encodeURIComponent(accountId)}`, {
+      method: 'POST'
+    }).then(r => {
+      if (!r.ok) throw new Error('Seed failed');
+      return r.json();
+    });
+  
+  export const cancelSubscription = (accountId: string, merchant: string) =>
+    fetch(`${process.env.EXPO_PUBLIC_API_URL?.replace(/[<>"']/g, '')}/api/subsense/cancel`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ accountId, merchant }),
+    }).then(r => {
+      if (!r.ok) throw new Error('Cancel failed');
+      return r.json();
+    });
+  
