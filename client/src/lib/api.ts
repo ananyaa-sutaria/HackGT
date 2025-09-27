@@ -1,27 +1,27 @@
 const BASE = process.env.EXPO_PUBLIC_API_URL;
+console.log('API BASE =', BASE); // Verify it's not undefined
 
-// Fetch all accounts
-export async function getAccounts() {
-  const res = await fetch(`${BASE}/api/transactions/accounts`);
+async function http<T = any>(path: string, init?: RequestInit): Promise<T> {
+  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL is missing. Check client/.env and restart with -c.');
+  const res = await fetch(`${BASE}${path}`, init);
+  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
   return res.json();
 }
 
-// Fetch subscriptions for a specific account
-export async function scanSubscriptions(accountId: string) {
-  const res = await fetch(`${BASE}/api/subsense/scan/${accountId}`);
-  return res.json();
+export function getAccounts() {
+  return http('/api/transactions/accounts');
 }
 
-// Simulate cancel
-export async function simulateCancel(payload: {
-  fromAccountId: string;
-  toAccountId: string;
-  amount: number;
+export function scanSubscriptions(accountId: string) {
+  return http(`/api/subsense/scan/${accountId}`);
+}
+
+export function simulateCancel(payload: {
+  fromAccountId: string; toAccountId: string; amount: number;
 }) {
-  const res = await fetch(`${BASE}/api/subsense/simulate-cancel`, {
+  return http('/api/subsense/simulate-cancel', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  return res.json();
 }
