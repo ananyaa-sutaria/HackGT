@@ -1,40 +1,38 @@
 import { Platform } from 'react-native';
+import { getToken } from './auth';
 
-// Build BASE safely
-function normalizeBase(raw: string | undefined) {
+function normalizeBase(raw?: string) {
   let s = (raw || '').trim().replace(/[<>"']/g, '');
   if (!s) return '';
   if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
-  let url: URL;
-  try { url = new URL(s); } catch { throw new Error(`Bad EXPO_PUBLIC_API_URL: ${raw}`); }
-  if (Platform.OS === 'android' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
-    url.hostname = '10.0.2.2';
-  }
-  return url.toString().replace(/\/+$/, '');
+  const u = new URL(s);
+  if (Platform.OS === 'android' && (u.hostname === 'localhost' || u.hostname === '127.0.0.1')) u.hostname = '10.0.2.2';
+  return u.toString().replace(/\/+$/, '');
 }
 const BASE = normalizeBase(process.env.EXPO_PUBLIC_API_URL);
 console.log('API BASE =', BASE || '(unset)');
 
-async function http<T=any>(path: string, init?: RequestInit) {
-  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL not set (client/.env). Restart Expo with -c.');
-  const res = await fetch(`${BASE}${path}`, { headers: { Accept: 'application/json' }, ...init });
+export async function http<T=any>(path: string, init: RequestInit = {}) {
+  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL not set. Restart Expo with -c after editing client/.env.');
+  const token = await getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { Accept: 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init.headers || {}) },
+    ...init,
+  });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    throw new Error(`HTTP ${res.status} on ${path}${text ? ` — ${text.slice(0,200)}` : ''}`);
+    throw new Error(`HTTP ${res.status} on ${path}${text ? ` — ${text.slice(0,180)}` : ''}`);
   }
   const ct = res.headers.get('content-type') || '';
-  return ct.includes('application/json') ? (await res.json() as T) : (await res.text() as any as T);
+  return ct.includes('application/json') ? res.json() : (res.text() as any as T);
 }
 
+// existing exports…
 export const getAccounts = () => http('/api/transactions/accounts');
-export const scanSubscriptions = (accountId: string) => http(`/api/subsense/scan/${encodeURIComponent(accountId)}`);
+export const scanSubscriptions = (id: string) => http(`/api/subsense/scan/${encodeURIComponent(id)}`);
+export const provisionDemo = () => http('/api/demo/provision', { method: 'POST' });
 
-// Optional: judge demo button
-export const provisionDemo = async () => {
-  const res = await fetch(`${BASE}/api/demo/provision`, { method: 'POST' });
-  if (!res.ok) {
-    const text = await res.text().catch(() => '');
-    throw new Error(`Provision failed — HTTP ${res.status}${text ? `: ${text.slice(0,200)}` : ''}`);
-  }
-  return res.json();
-};
+// auth API
+export const loginApi = (email: string, pin: string) =>
+  http('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, pin }) });
+export const meApi = () => http('/api/auth/me');
