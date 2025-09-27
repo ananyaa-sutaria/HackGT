@@ -69,3 +69,6 @@ export const loginApi = (email: string, pin: string) =>
   });
 
 export const meApi = () => http('/api/auth/me');
+
+// simple health check used by Settings → "Ping API"
+export const ping = () => http('/health');

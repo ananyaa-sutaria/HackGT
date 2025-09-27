@@ -47,3 +47,9 @@ export async function clearToken() {
       }
     } catch {}
   }
+
+  export const ping = () => http('/health');
+
+function http(arg0: string) {
+    throw new Error('Function not implemented.');
+}
