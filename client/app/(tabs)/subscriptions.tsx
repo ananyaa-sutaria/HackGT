@@ -208,7 +208,7 @@ function fmt(v: number) {
 
 /* ---------- styles ---------- */
 const styles = StyleSheet.create({
-  container:{ flex:1, padding:20, backgroundColor:'#fff' },
+  container:{ flex:1, padding:20, backgroundColor:'#B5DAAF' },
   center:{ flex:1, alignItems:'center', justifyContent:'center', padding:24 },
   title:{ fontSize:22, fontWeight:'700', marginBottom:12 },
 

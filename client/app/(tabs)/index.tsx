@@ -89,7 +89,7 @@ export default function AccountsScreen() {
 }
 
 const styles = StyleSheet.create({
-  container:{ flex:1, padding:20, backgroundColor:'#fff' },
+  container:{ flex:1, padding:20, backgroundColor:'#B5DAAF' },
   title:{ fontSize:24, fontWeight:'bold', marginBottom:20 },
   card:{ padding:15, backgroundColor:'#f4f4f4', marginBottom:12, borderRadius:10 },
   name:{ fontSize:18, fontWeight:'600' },
