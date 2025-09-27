@@ -1,69 +1,40 @@
-// client/src/lib/api.ts
-const RAW = (process.env.EXPO_PUBLIC_API_URL || '').trim();
-const BASE = RAW.replace(/[<>"']/g, ''); // sanitize
+import { Platform } from 'react-native';
+
+// Build BASE safely
+function normalizeBase(raw: string | undefined) {
+  let s = (raw || '').trim().replace(/[<>"']/g, '');
+  if (!s) return '';
+  if (!/^https?:\/\//i.test(s)) s = `http://${s}`;
+  let url: URL;
+  try { url = new URL(s); } catch { throw new Error(`Bad EXPO_PUBLIC_API_URL: ${raw}`); }
+  if (Platform.OS === 'android' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1')) {
+    url.hostname = '10.0.2.2';
+  }
+  return url.toString().replace(/\/+$/, '');
+}
+const BASE = normalizeBase(process.env.EXPO_PUBLIC_API_URL);
 console.log('API BASE =', BASE || '(unset)');
 
-async function http<T = any>(path: string, init?: RequestInit): Promise<T> {
-  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL missing (client/.env)');
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { Accept: 'application/json', ...(init?.headers || {}) },
-    ...init,
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} on ${path}`);
-  return res.json();
+async function http<T=any>(path: string, init?: RequestInit) {
+  if (!BASE) throw new Error('EXPO_PUBLIC_API_URL not set (client/.env). Restart Expo with -c.');
+  const res = await fetch(`${BASE}${path}`, { headers: { Accept: 'application/json' }, ...init });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`HTTP ${res.status} on ${path}${text ? ` — ${text.slice(0,200)}` : ''}`);
+  }
+  const ct = res.headers.get('content-type') || '';
+  return ct.includes('application/json') ? (await res.json() as T) : (await res.text() as any as T);
 }
 
-export const ping = () => http('/health');
 export const getAccounts = () => http('/api/transactions/accounts');
+export const scanSubscriptions = (accountId: string) => http(`/api/subsense/scan/${encodeURIComponent(accountId)}`);
 
-export const scanSubscriptions = (accountId: string) =>
-  http(`/api/subsense/scan/${encodeURIComponent(accountId)}`);
-
-export const simulateCancel = (payload: {
-  fromAccountId: string; toAccountId: string; amount: number;
-}) =>
-  http('/api/subsense/simulate-cancel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
-
-
-  export const seedDemoSubs = (accountId: string) =>
-    fetch(`${process.env.EXPO_PUBLIC_API_URL?.replace(/[<>"']/g, '')}/api/subsense/seed/${encodeURIComponent(accountId)}`, {
-      method: 'POST'
-    }).then(r => {
-      if (!r.ok) throw new Error('Seed failed');
-      return r.json();
-    });
-  
-  export const cancelSubscription = (accountId: string, merchant: string) =>
-    fetch(`${process.env.EXPO_PUBLIC_API_URL?.replace(/[<>"']/g, '')}/api/subsense/cancel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ accountId, merchant }),
-    }).then(r => {
-      if (!r.ok) throw new Error('Cancel failed');
-      return r.json();
-    });
-  
-    export const provisionDemo = async () => {
-      const base = (process.env.EXPO_PUBLIC_API_URL || '').trim().replace(/[<>"']/g, '');
-      const res = await fetch(`${base}/api/demo/provision`, { method: 'POST' });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Provision failed — HTTP ${res.status}${text ? `: ${text.slice(0,200)}` : ''}`);
-      }
-      return res.json();
-    };
-    
-    export const seedNessieSubs = async (accountId: string) => {
-      const base = (process.env.EXPO_PUBLIC_API_URL || '').trim().replace(/[<>"']/g, '');
-      const res = await fetch(`${base}/api/subsense/seed-nessie/${encodeURIComponent(accountId)}`, { method: 'POST' });
-      if (!res.ok) {
-        const text = await res.text().catch(() => '');
-        throw new Error(`Seed failed — HTTP ${res.status}${text ? `: ${text.slice(0,200)}` : ''}`);
-      }
-      return res.json();
-    };
-    
+// Optional: judge demo button
+export const provisionDemo = async () => {
+  const res = await fetch(`${BASE}/api/demo/provision`, { method: 'POST' });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`Provision failed — HTTP ${res.status}${text ? `: ${text.slice(0,200)}` : ''}`);
+  }
+  return res.json();
+};

@@ -1,97 +1,67 @@
-// server/routes/subsense.js
 import express from 'express';
 import axios from 'axios';
 
 const router = express.Router();
-
-const base = process.env.NESSIE_BASE_URL;   // http://api.nessieisreal.com
+const base = process.env.NESSIE_BASE_URL;
 const key  = process.env.NESSIE_KEY;
 
-/* ---- Simple monthly recurrence detector ---- */
-function detectRecurring(txns = []) {
-  const DAY = 1000 * 60 * 60 * 24;
-  const groups = new Map(); // key: MERCHANT-amount -> [dates]
+// Helpers
+function toISO(d) { return new Date(d).toISOString().slice(0,10); }
+function daysBetween(a, b) { return Math.round((new Date(b)-new Date(a))/86400000); }
+function mean(arr) { return arr.reduce((s,x)=>s+x,0)/Math.max(arr.length,1); }
 
-  for (const t of txns) {
-    const merchant = String(
-      t.merchant?.name ||
-      t.merchant ||
-      t.description ||
-      t.payee ||
-      t.merchant_id ||
-      'UNKNOWN'
-    ).trim().toUpperCase();
-
-    const amount = Number(
-      t.amount ??
-      t.purchase_amount ??
-      t.total ??
-      0
-    );
-
-    const dateStr =
-      t.purchase_date ||
-      t.transaction_date ||
-      t.date ||
-      t.created_at;
-
-    const d = new Date(dateStr || Date.now());
-    if (Number.isNaN(d.getTime())) continue;
-
-    const key = `${merchant}-${amount.toFixed(2)}`;
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(d);
+function detectSubscriptions(purchases = []) {
+  // cluster by (merchant description upper + amount)
+  const map = new Map();
+  for (const p of purchases) {
+    const m = String(p.description || p.merchant || '').toUpperCase().trim();
+    const amt = Number(p.amount || 0);
+    if (!m || !amt) continue;
+    const k = `${m}|${amt.toFixed(2)}`;
+    const arr = map.get(k) || [];
+    arr.push(new Date(p.purchase_date || p.purchaseDate || p.date));
+    map.set(k, arr);
   }
 
-  const subs = [];
-  for (const [key, dates] of groups) {
-    dates.sort((a, b) => a - b);
-    if (dates.length < 3) continue;
+  const out = [];
+  for (const [k, dates] of map.entries()) {
+    if (dates.length < 3) continue; // need a few points
+    dates.sort((a,b)=>a-b);
+    const diffs = [];
+    for (let i=1;i<dates.length;i++) diffs.push(daysBetween(dates[i-1], dates[i]));
+    const avg = mean(diffs);
 
-    const gaps = dates.slice(1).map((d, i) => (d - dates[i]) / DAY);
-    const avg = gaps.reduce((a, b) => a + b, 0) / gaps.length;
-
+    // monthly if ~27..33 days (lenient window)
     if (avg >= 27 && avg <= 33) {
-      const [merchant, amt] = key.split('-');
-      const last = dates[dates.length - 1];
-      const next = new Date(last.getTime() + 30 * DAY);
-
-      subs.push({
+      const [merchant, amtStr] = k.split('|');
+      const last = dates[dates.length-1];
+      const next = new Date(last); next.setDate(next.getDate() + Math.round(avg));
+      out.push({
         merchant,
-        amount: Number(amt),
+        amount: Number(amtStr),
         cadence: 'monthly',
-        lastDate: last.toISOString().slice(0, 10),
-        nextDate: next.toISOString().slice(0, 10),
+        nextDate: toISO(next),
       });
     }
   }
-  return subs;
+  return out;
 }
 
-/* ---- ROUTES ---- */
-
-// GET /api/subsense/scan/:accountId  -> purchases from Nessie -> detect recurring
+/** GET /api/subsense/scan/:accountId
+ *  Pulls purchases from Nessie and infers monthly subscriptions.
+ */
 router.get('/scan/:accountId', async (req, res) => {
   const { accountId } = req.params;
-
+  if (!base || !key) return res.status(500).json({ error: 'NESSIE env missing' });
   try {
-    // Nessie: GET /accounts/{accountId}/purchases?key=...
-    const r = await axios.get(`${base}/accounts/${accountId}/purchases`, { params: { key } });
+    const r = await axios.get(`${base}/accounts/${encodeURIComponent(accountId)}/purchases`, { params: { key } });
     const purchases = Array.isArray(r.data) ? r.data : [];
-
-    const subs = detectRecurring(purchases);
+    const subs = detectSubscriptions(purchases);
     res.json(subs);
   } catch (e) {
-    const status = e?.response?.status || 500;
-    const payload = e?.response?.data || e.message;
-    console.error('Scan error:', status, payload);
-    if (status === 404) {
-      return res.status(404).json({ error: `No purchases found for account ${accountId}` });
-    }
-    if (status === 401 || status === 403) {
-      return res.status(status).json({ error: 'Invalid or unauthorized Nessie API key' });
-    }
-    res.status(status).json({ error: 'Failed to scan subscriptions' });
+    const st = e?.response?.status || 500;
+    const msg = e?.response?.data || e.message;
+    res.status(st).json({ error: 'Scan failed', detail: msg });
   }
 });
 
