@@ -1,6 +1,27 @@
 import { useLocalSearchParams } from 'expo-router';
-import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
+import { View, Text, Pressable, StyleSheet, Alert, TouchableOpacity, Modal, TouchableWithoutFeedback } from 'react-native';
 import { simulateCancel } from '../src/lib/api';
+import React, { useRef, useEffect, useState, ReactNode } from 'react';
+
+
+
+export const subscriptionDropdown = ({children} : {children: ReactNode}) => {
+  return<>{children}</>
+}
+
+export const subscriptionOption = ({
+  onSelect,
+  children,
+}: {
+  onSelect: () => void;
+  children: ReactNode;
+}) => {
+  return (
+    <TouchableOpacity onPress={onSelect} style={stylesSubscription.subscriptionOption}>
+      {children}
+    </TouchableOpacity>
+)
+};
 
 export default function SubscriptionDetailScreen() {
   const { accountId, sub } = useLocalSearchParams<{ accountId: string; sub: string }>();
@@ -45,4 +66,27 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   buttonText: { color: '#fff', fontWeight: '700' },
+});
+
+const stylesSubscription = StyleSheet.create({
+  modelOverlay:{
+    flex: 1,
+    justifyContent: 'flex-start',
+    alignItems: 'flex-start',
+    backgroundColor: 'transparent',
+  },
+  subscriptionDropdown:{
+      position: 'absolute',
+    width: 80,
+    backgroundColor: 'white',
+    borderRadius: 5,
+    padding: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  subscriptionOption: {
+    padding: 5,
+  }
 });
