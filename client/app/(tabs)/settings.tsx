@@ -254,12 +254,11 @@ export default function Settings() {
   </Pressable>
 
   {/* New reset button */}
-  <Pressable onPress={onResetApi} style={[s.logoutBtn, { marginTop:8, backgroundColor:'#f59e0b' }]}>
+  <Pressable onPress={onResetApi} style={[s.logoutBtn, { marginTop:8, backgroundColor:'#E4A8B8' }]}>
     <Text style={s.logoutText}>Reset API</Text>
   </Pressable>
 </View>
 
-    
 
       {/* Logout */}
       <Pressable onPress={onLogout} disabled={loggingOut} style={[s.logoutBtn, loggingOut && { opacity:0.6 }]}>
@@ -310,18 +309,18 @@ const s = StyleSheet.create({
   hint:{ color:'#6B7280', marginTop:8 },
 
   linkBtn:{ paddingVertical:6, paddingHorizontal:10, borderRadius:8, backgroundColor:'#EEF2FF' },
-  linkBtnText:{ color:'#0F62FE', fontWeight:'700' },
+  linkBtnText:{ color:'#E4A8B8', fontWeight:'700' },
 
   outlineBtn:{ paddingVertical:10, paddingHorizontal:14, borderRadius:10, borderWidth:1, borderColor:'#CBD5E1', alignItems:'center' },
   outlineBtnText:{ fontWeight:'700', color:'#111827' },
 
-  primaryBtn:{ backgroundColor:'#0F62FE', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center' },
+  primaryBtn:{ backgroundColor:'#E4A8B8', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center' },
   primaryBtnText:{ color:'#fff', fontWeight:'700' },
 
   emojiCell:{ width:44, height:44, borderRadius:12, borderWidth:1, borderColor:'#E5E7EB', alignItems:'center', justifyContent:'center' },
 
   value:{ fontWeight:'700', color:'#111827', maxWidth:190 },
 
-  logoutBtn:{ backgroundColor:'#EF4444', paddingVertical:14, borderRadius:10, alignItems:'center', marginTop:12 },
+  logoutBtn:{ backgroundColor:'#E4A8B8', paddingVertical:14, borderRadius:10, alignItems:'center', marginTop:12 },
   logoutText:{ color:'#fff', fontWeight:'700' },
 });

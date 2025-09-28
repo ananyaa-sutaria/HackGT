@@ -133,8 +133,7 @@ export default function SubscriptionsScreen() {
 
   const handleSeed = useCallback(async () => {
     try {
-      if (accountType === 'checking') await provisionDemo({ type: 'checking' });
-      else await provisionDemo({ type: 'savings' });
+      await provisionDemo();
       await load();
       Alert.alert('Demo created', `Seeded ${accountType} subscriptions.`);
     } catch (e: any) {
