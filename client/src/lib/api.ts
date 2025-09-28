@@ -96,3 +96,5 @@ export const snoozeSubscription = (payload: {
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify(payload),
 });
+export const resetApi = () =>
+  http('/api/subsense/reset', { method: 'POST' });

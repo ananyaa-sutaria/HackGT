@@ -125,5 +125,10 @@ router.get('/scan/:accountId', async (req, res) => {
     return res.json([]); // keep demo alive
   }
 });
+router.post('/reset', (_req, res) => {
+  _cancelled.clear();
+  _snoozed.clear();
+  res.json({ ok: true, message: 'SubSense overrides reset' });
+});
 
 export default router;

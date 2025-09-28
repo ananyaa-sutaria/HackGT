@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { router } from 'expo-router';
 import { clearToken } from '../../src/lib/auth';
-import { meApi, BASE as API_BASE, ping } from '../../src/lib/api';
+import { meApi, BASE as API_BASE, ping, resetApi } from '../../src/lib/api';
 
 type MeShape = { ok?: boolean; user?: { email?: string }; email?: string } | null;
 
@@ -247,6 +247,19 @@ export default function Settings() {
 
       {/* Diagnostics */}
       <View style={s.card}>
+  <Text style={s.sectionTitle}>Diagnostics</Text>
+  <Row label="API base" value={API_BASE || '(unset)'} />
+  <Pressable onPress={onPing} style={[s.outlineBtn, { marginTop:8 }]}>
+    <Text style={s.outlineBtnText}>Ping API</Text>
+  </Pressable>
+
+  {/* New reset button */}
+  <Pressable onPress={onResetApi} style={[s.logoutBtn, { marginTop:8, backgroundColor:'#f59e0b' }]}>
+    <Text style={s.logoutText}>Reset API</Text>
+  </Pressable>
+</View>
+
+      <View style={s.card}>
         <Text style={s.sectionTitle}>Diagnostics</Text>
         <Row label="API base" value={API_BASE || '(unset)'} />
         <Pressable onPress={onPing} style={[s.outlineBtn, { marginTop:8 }]}>
@@ -269,6 +282,14 @@ function Row({ label, value }: { label: string; value: string }) {
       <Text style={s.value} numberOfLines={1}>{value}</Text>
     </View>
   );
+}
+async function onResetApi() {
+  try {
+    await resetApi();
+    Alert.alert('Reset complete', 'Server overrides cleared. Pull to refresh on Subscriptions.');
+  } catch (e: any) {
+    Alert.alert('Reset failed', e?.message || 'Please try again.');
+  }
 }
 
 const s = StyleSheet.create({
