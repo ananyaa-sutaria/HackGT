@@ -148,7 +148,31 @@ export default function SubscriptionsScreen() {
       });
     }
     return list;
-  }, [subs, accountType, filter, search, sortOrder]);
+  }, [subs, filter, search, sortOrder]);
+
+  // Local demo seeding
+  const handleSeed = useCallback(async () => {
+<<<<<<< HEAD
+    try {
+      await provisionDemo();
+      await load();
+      Alert.alert('Demo created', `Seeded ${accountType} subscriptions.`);
+    } catch (e: any) {
+      Alert.alert('Seed failed', e?.message || 'Please try again.');
+    }
+  }, [load, accountType]);
+=======
+    if (!accountId) return;
+    const sample: Sub[] = [
+      { merchant: 'Netflix',  amount: 15.99, cadence: 'monthly', nextDate: isoPlusDays(12) },
+      { merchant: 'Spotify',  amount: 9.99,  cadence: 'monthly', nextDate: isoPlusDays(20) },
+      { merchant: 'Prime',    amount: 139,   cadence: 'yearly',  nextDate: isoPlusDays(50) },
+    ];
+    await AsyncStorage.setItem(keyForAccount(accountId), JSON.stringify(sample));
+    await load();
+    Alert.alert('Demo created', 'Seeded sample subscriptions for this account.');
+  }, [accountId, load]);
+>>>>>>> 7c0ea35c0f0200b71f1db7d53d597401bf890803
 
   /* --------- Add new subscription (checking only) --------- */
   const handleAddSubscription = async () => {
