@@ -23,6 +23,7 @@ export default function LoginScreen() {
 
   return (
     <View style={s.container}>
+      <View style = {s.box}>
       <Text style={s.title}>SubSense</Text>
       <Text style={s.subtitle}>Sign in to continue</Text>
 
@@ -42,17 +43,19 @@ export default function LoginScreen() {
       </Pressable>
 
       <Text style={s.hint}>Demo PIN is 4242 (configurable on the server)</Text>
+      </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
-  container:{ flex:1, padding:24, justifyContent:'center', backgroundColor:'#fff' },
-  title:{ fontSize:28, fontWeight:'800', marginBottom:4 },
+  container:{ flex:1, padding:24, justifyContent:'center', backgroundColor:'#B5DAAF' },
+  box:{backgroundColor: "#FFF8ED", borderRadius: 16, padding: 24},
+  title:{ color: "#B5DAAF", fontSize:28, fontWeight:'800', marginBottom:4 },
   subtitle:{ color:'#6B7280', marginBottom:16 },
-  input:{ borderWidth:1, borderColor:'#E5E7EB', borderRadius:10, padding:12, marginBottom:12 },
-  btn:{ backgroundColor:'#0F62FE', padding:14, borderRadius:10, alignItems:'center' },
-  btnText:{ color:'#fff', fontWeight:'700' },
+  input:{backgroundColor: "#B5DAAF" , color:'#FFF8ED', borderWidth:1, borderColor:'#E4A8B8', borderRadius:10, padding:12, marginBottom:12 },
+  btn:{ backgroundColor:'#E4A8B8', padding:14, borderRadius:10, alignItems:'center' },
+  btnText:{ color:'#FFF8ED', fontWeight:'700' },
   err:{ color:'#EF4444', marginBottom:8 },
   hint:{ color:'#6B7280', fontSize:12, marginTop:12 },
 });
