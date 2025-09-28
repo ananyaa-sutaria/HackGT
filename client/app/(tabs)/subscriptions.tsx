@@ -89,7 +89,6 @@ export default function SubscriptionsScreen() {
     load();
   }, [load]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
   const totals = useMemo(() => {
@@ -159,34 +158,6 @@ export default function SubscriptionsScreen() {
     setNewCadence('monthly');
   };
 
-
-  // const load = useCallback(async () => {
-  //   if (!accountId) {
-  //     setLoading(false);
-  //     setError('No account selected. Go to Accounts and pick one.');
-  //     return;
-  //   }
-  //   try {
-  //     setError(null);
-  //     const storedSubs = await AsyncStorage.getItem(`subs_account_${accountId}`);
-  //     const subsData = storedSubs ? JSON.parse(storedSubs) : null;
-  //     const clean = (Array.isArray(subsData) ? subsData : []).map((s: any) => ({
-  //       merchant: s?.merchant ?? 'Unknown',
-  //       amount: cleanAmount(s?.amount),
-  //       cadence: (s?.cadence === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
-  //       nextDate: s?.nextDate,
-  //     })) as Sub[];
-  //     setSubs(clean);
-  //   } catch (e: any) {
-  //     setError(e?.message || 'Failed to load subscriptions');
-  //   }
-  //   finally {
-  //     setLoading(false);
-  //     setRefreshing(false);
-  //   }
-  // }, [accountId]);
-
-  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
 
