@@ -11,6 +11,7 @@ import {
   RefreshControl,
   Alert,
   TextInput,
+  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
@@ -18,7 +19,7 @@ import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
 type Sub = {
   merchant: string;
   amount: number | string;
-  cadence?: string;
+  cadence?: 'monthly' | 'yearly';
   nextDate?: string;
 };
 
@@ -37,6 +38,12 @@ export default function SubscriptionsScreen() {
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
 
+  const [modalVisible, setModalVisible] = useState(false);
+  const [newMerchant, setNewMerchant] = useState('');
+  const [newAmount, setNewAmount] = useState('');
+  const [newCadence, setNewCadence] = useState<'monthly' | 'yearly'>('monthly');
+  const [newNextDate, setNewNextDate] = useState('');
+
   // Load budget once
   useEffect(() => {
     (async () => {
@@ -45,7 +52,6 @@ export default function SubscriptionsScreen() {
     })();
   }, []);
 
-  // Loader
   const load = useCallback(async () => {
     if (!accountId) {
       setLoading(false);
@@ -58,7 +64,7 @@ export default function SubscriptionsScreen() {
       const clean = (Array.isArray(data) ? data : []).map((s: any) => ({
         merchant: s?.merchant ?? 'Unknown',
         amount: cleanAmount(s?.amount),
-        cadence: String(s?.cadence ?? 'monthly').toLowerCase(),
+        cadence: (s?.cadence === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
         nextDate: s?.nextDate,
       })) as Sub[];
       setSubs(clean);
@@ -75,18 +81,9 @@ export default function SubscriptionsScreen() {
     load();
   }, [load]);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load])
-  );
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+  const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
-  const onRefresh = useCallback(() => {
-    setRefreshing(true);
-    load();
-  }, [load]);
-
-  // Totals
   const totals = useMemo(() => {
     const monthly = subs.reduce((sum, s) => sum + toMonthly(cleanAmount(s.amount), s.cadence), 0);
     return { monthly, annual: monthly * 12 };
@@ -94,7 +91,6 @@ export default function SubscriptionsScreen() {
 
   const overBudget = budget != null && totals.monthly > budget;
 
-  // Apply filters + search + sort
   const filteredSubs = useMemo(() => {
     let list = subs.filter((s) => {
       if (filter !== 'all' && s.cadence !== filter) return false;
@@ -112,7 +108,6 @@ export default function SubscriptionsScreen() {
     return list;
   }, [subs, filter, search, sortOrder]);
 
-  // Demo seeding fallback
   const handleSeed = useCallback(async () => {
     try {
       await provisionDemo();
@@ -128,9 +123,25 @@ export default function SubscriptionsScreen() {
     }
   }, [load, subs.length]);
 
-  if (loading) {
-    return <View style={styles.center}><ActivityIndicator size="large" /></View>;
-  }
+  const handleAddSubscription = () => {
+    if (!newMerchant.trim() || !newAmount.trim()) {
+      return Alert.alert('Missing info', 'Please provide merchant name and amount.');
+    }
+    const newSub: Sub = {
+      merchant: newMerchant.trim(),
+      amount: parseFloat(newAmount),
+      cadence: newCadence,
+      nextDate: newNextDate || undefined,
+    };
+    setSubs((prev) => [...prev, newSub]);
+    setModalVisible(false);
+    setNewMerchant('');
+    setNewAmount('');
+    setNewNextDate('');
+    setNewCadence('monthly');
+  };
+
+  if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
 
   if (error) {
     return (
@@ -146,7 +157,6 @@ export default function SubscriptionsScreen() {
 
   return (
     <View style={styles.container}>
-      {/* Totals bar */}
       <View style={[styles.totalsBar, overBudget && styles.totalsBarOver]}>
         <Text style={[styles.totalsText, overBudget && styles.totalsTextOver]}>
           Total: {fmt(totals.monthly)} / mo  ({fmt(totals.annual)} / yr)
@@ -197,6 +207,14 @@ export default function SubscriptionsScreen() {
         </Pressable>
       </View>
 
+      {/* Add New Subscription Button */}
+      <Pressable
+        style={[styles.primaryBtn, { marginBottom: 12 }]}
+        onPress={() => setModalVisible(true)}
+      >
+        <Text style={styles.primaryBtnText}>Add New Subscription</Text>
+      </Pressable>
+
       <Text style={styles.title}>Detected Subscriptions</Text>
 
       <FlatList
@@ -236,6 +254,56 @@ export default function SubscriptionsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         contentContainerStyle={{ paddingBottom: 20 }}
       />
+
+      {/* Modal for New Subscription */}
+      <Modal visible={modalVisible} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.title}>New Subscription</Text>
+            <TextInput
+              placeholder="Merchant"
+              style={styles.modalInput}
+              value={newMerchant}
+              onChangeText={setNewMerchant}
+            />
+            <TextInput
+              placeholder="Amount"
+              style={styles.modalInput}
+              value={newAmount}
+              onChangeText={setNewAmount}
+              keyboardType="numeric"
+            />
+            <TextInput
+              placeholder="Next Due Date (YYYY-MM-DD)"
+              style={styles.modalInput}
+              value={newNextDate}
+              onChangeText={setNewNextDate}
+            />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
+              {['monthly', 'yearly'].map((c) => (
+                <Pressable
+                  key={c}
+                  style={[styles.filterBtn, newCadence === c && styles.filterBtnActive]}
+                  onPress={() => setNewCadence(c as 'monthly' | 'yearly')}
+                >
+                  <Text style={[styles.filterText, newCadence === c && styles.filterTextActive]}>
+                    {c.charAt(0).toUpperCase() + c.slice(1)}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
+              <Pressable style={[styles.primaryBtn, { flex: 1, marginRight: 4 }]} onPress={handleAddSubscription}>
+                <Text style={styles.primaryBtnText}>Save</Text>
+              </Pressable>
+              <Pressable style={[styles.secondaryBtn, { flex: 1, marginLeft: 4 }]} onPress={() => setModalVisible(false)}>
+                <Text style={styles.secondaryBtnText}>Cancel</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -248,26 +316,14 @@ function cleanAmount(a: any) {
 function toMonthly(amount: number, cadence?: string) {
   const c = (cadence || 'monthly').toLowerCase();
   switch (c) {
-    case 'weekly':    return (amount * 52) / 12;
-    case 'biweekly':  return (amount * 26) / 12;
-    case 'quarterly': return amount / 3;
-    case 'yearly':
-    case 'annual':    return amount / 12;
+    case 'yearly': return amount / 12;
     case 'monthly':
-    default:          return amount;
+    default: return amount;
   }
 }
 function prettyCadence(c?: string) {
-  const k = (c || 'monthly').toLowerCase();
-  const map: Record<string, string> = {
-    monthly: 'monthly',
-    yearly: 'yearly',
-    annual: 'yearly',
-    weekly: 'weekly',
-    biweekly: 'every 2 weeks',
-    quarterly: 'quarterly',
-  };
-  return map[k] || k;
+  const map: Record<string, string> = { monthly: 'monthly', yearly: 'yearly' };
+  return c && map[c] ? map[c] : 'monthly';
 }
 function fmt(v: number) {
   try {
@@ -309,9 +365,13 @@ const styles = StyleSheet.create({
   secondaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center', alignSelf:'flex-start' },
   secondaryBtnText:{ color:'#fff', fontWeight:'700' },
 
-  primaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:12, paddingHorizontal:16, borderRadius:10 },
-  primaryBtnText:{ color:'#fff', fontWeight:'700' },
+  primaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:12, paddingHorizontal:16, borderRadius:10, alignItems:'center' },
+  primaryBtnText:{ color:'#fff', fontWeight:'700', textAlign:'center' },
 
   errTitle:{ fontSize:18, fontWeight:'700', marginBottom:8 },
   errMsg:{ color:'#b00020', textAlign:'center', marginBottom:12 },
+
+  modalOverlay:{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'rgba(0,0,0,0.5)' },
+  modalContainer:{ width:'90%', backgroundColor:'#fff', borderRadius:12, padding:16 },
+  modalInput:{ borderWidth:1, borderColor:'#ccc', borderRadius:8, padding:10, marginTop:8 },
 });
