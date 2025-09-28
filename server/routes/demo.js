@@ -57,6 +57,7 @@ async function seedPurchasesIfEmpty(accountId) {
     { description: 'NETFLIX', amount: 15.99 },
     { description: 'SPOTIFY', amount:  9.99 },
     { description: 'ICLOUD STORAGE', amount: 2.99 },
+
   ];
   const today = new Date();
   let created = 0;

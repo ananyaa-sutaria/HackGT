@@ -72,3 +72,27 @@ export const meApi = () => http('/api/auth/me');
 
 // simple health check used by Settings → "Ping API"
 export const ping = () => http('/health');
+
+export const cancelSubscription = (payload: {
+  accountId: string; merchant: string; amount?: number;
+}) => http('/api/subsense/cancel', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload),
+});
+
+export const resumeSubscription = (payload: {
+  accountId: string; merchant: string; amount?: number;
+}) => http('/api/subsense/resume', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload),
+});
+
+export const snoozeSubscription = (payload: {
+  accountId: string; merchant: string; amount?: number; days?: number;
+}) => http('/api/subsense/snooze', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(payload),
+});

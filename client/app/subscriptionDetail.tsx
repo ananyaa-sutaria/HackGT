@@ -1,6 +1,12 @@
+// app/subscriptionDetail.tsx
 import { useMemo } from 'react';
-import { View, Text, StyleSheet, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
+import {
+  cancelSubscription,
+  resumeSubscription,
+  snoozeSubscription,
+} from '../src/lib/api';
 
 type Sub = {
   merchant?: string;
@@ -10,33 +16,87 @@ type Sub = {
 };
 
 export default function SubscriptionDetail() {
-  const { sub } = useLocalSearchParams<{ sub?: string }>();
+  const { sub, accountId } = useLocalSearchParams<{ sub?: string; accountId?: string }>();
 
-  const data: Sub | null = useMemo(() => {
+  // Parse the `sub` param (JSON from the list screen)
+  const subData: Sub | null = useMemo(() => {
     try {
       if (!sub) return null;
-      const parsed = JSON.parse(Array.isArray(sub) ? sub[0] : sub);
-      return parsed ?? null;
+      const raw = Array.isArray(sub) ? sub[0] : sub;
+      return JSON.parse(raw) as Sub;
     } catch {
       return null;
     }
   }, [sub]);
 
+  // Compute monthly/annual display
   const { merchant, monthly, annual, nextDate, cadenceLabel } = useMemo(() => {
-    const m = (data?.merchant || 'Subscription') as string;
-    const amt = cleanAmount(data?.amount);
-    const cad = (data?.cadence || 'monthly').toLowerCase();
+    const m = (subData?.merchant || 'Subscription') as string;
+    const amt = cleanAmount(subData?.amount);
+    const cad = (subData?.cadence || 'monthly').toLowerCase();
     const perMonth = toMonthly(amt, cad);
     return {
       merchant: m,
       monthly: perMonth,
       annual: perMonth * 12,
-      nextDate: data?.nextDate,
+      nextDate: subData?.nextDate,
       cadenceLabel: cad,
     };
-  }, [data]);
+  }, [subData]);
 
-  if (!data) {
+  async function onCancel() {
+    if (!accountId || !subData?.merchant) {
+      return Alert.alert('Missing info', 'No account or merchant found.');
+    }
+    try {
+      await cancelSubscription({
+        accountId: String(accountId),
+        merchant: subData.merchant!,
+        amount: cleanAmount(subData.amount),
+      });
+      Alert.alert('Cancelled', `${subData.merchant} has been cancelled.`);
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Cancel failed', e?.message || 'Please try again.');
+    }
+  }
+
+  async function onResume() {
+    if (!accountId || !subData?.merchant) {
+      return Alert.alert('Missing info', 'No account or merchant found.');
+    }
+    try {
+      await resumeSubscription({
+        accountId: String(accountId),
+        merchant: subData.merchant!,
+        amount: cleanAmount(subData.amount),
+      });
+      Alert.alert('Re-subscribed', `${subData.merchant} has been re-enabled.`);
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Resume failed', e?.message || 'Please try again.');
+    }
+  }
+
+  async function onSnooze() {
+    if (!accountId || !subData?.merchant) {
+      return Alert.alert('Missing info', 'No account or merchant found.');
+    }
+    try {
+      const r = await snoozeSubscription({
+        accountId: String(accountId),
+        merchant: subData.merchant!,
+        amount: cleanAmount(subData.amount),
+        days: 30,
+      });
+      Alert.alert('Snoozed', `Next charge pushed to ${r?.nextDate || 'later'}.`);
+      router.back();
+    } catch (e: any) {
+      Alert.alert('Snooze failed', e?.message || 'Please try again.');
+    }
+  }
+
+  if (!subData) {
     return (
       <View style={s.center}>
         <Text style={s.err}>No subscription data provided.</Text>
@@ -60,18 +120,18 @@ export default function SubscriptionDetail() {
 
       <View style={s.card}>
         <Row label="Plan cadence" value={prettyCadence(cadenceLabel)} />
-        <Row label="Plan price"   value={fmt(cleanAmount(data.amount))} />
+        <Row label="Plan price"   value={fmt(cleanAmount(subData.amount))} />
         <Row label="Next due"     value={nextDate || '—'} />
       </View>
 
       <View style={s.actions}>
-        <Pressable style={s.primaryBtn}>
+        <Pressable style={s.primaryBtn} onPress={onCancel}>
           <Text style={s.primaryBtnText}>Cancel</Text>
         </Pressable>
-        <Pressable style={s.secondaryBtn}>
-          <Text style={s.secondaryBtnText}>Downgrade</Text>
+        <Pressable style={s.secondaryBtn} onPress={onResume}>
+          <Text style={s.secondaryBtnText}>Re-subscribe</Text>
         </Pressable>
-        <Pressable style={s.tertiaryBtn}>
+        <Pressable style={s.tertiaryBtn} onPress={onSnooze}>
           <Text style={s.tertiaryBtnText}>Snooze 30 days</Text>
         </Pressable>
       </View>
@@ -85,7 +145,6 @@ function cleanAmount(a: any) {
   if (typeof a === 'string') return Number(a.replace(/[^0-9.\-]/g, '')) || 0;
   return Number(a) || 0;
 }
-
 function toMonthly(amount: number, cadence?: string) {
   const c = (cadence || 'monthly').toLowerCase();
   switch (c) {
@@ -98,7 +157,6 @@ function toMonthly(amount: number, cadence?: string) {
     default:          return amount;
   }
 }
-
 function fmt(v: number) {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v);
@@ -106,7 +164,6 @@ function fmt(v: number) {
     return `$${v.toFixed(2)}`;
   }
 }
-
 function prettyCadence(c: string) {
   const map: Record<string,string> = {
     monthly: 'Monthly',
@@ -118,7 +175,6 @@ function prettyCadence(c: string) {
   };
   return map[c] || c[0]?.toUpperCase() + c.slice(1);
 }
-
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View style={s.row}>

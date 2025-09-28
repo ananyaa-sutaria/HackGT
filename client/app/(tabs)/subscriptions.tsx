@@ -13,6 +13,8 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
+import { useFocusEffect } from 'expo-router';
+
 
 type Sub = {
   merchant: string;
@@ -69,6 +71,14 @@ export default function SubscriptionsScreen() {
     setLoading(true);
     load();
   }, [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      // refresh every time screen gains focus (after Cancel/Snooze)
+      load();
+    }, [load])
+  );
+  
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
