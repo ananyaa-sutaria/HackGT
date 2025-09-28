@@ -90,11 +90,11 @@ export default function AccountsScreen() {
 
 const styles = StyleSheet.create({
   container:{ flex:1, padding:20, backgroundColor:'#B5DAAF' },
-  title:{ fontSize:24, fontWeight:'bold', marginBottom:20 },
-  card:{ padding:15, backgroundColor:'#f4f4f4', marginBottom:12, borderRadius:10 },
-  name:{ fontSize:18, fontWeight:'600' },
+  title:{ fontSize:30, fontWeight:'bold', marginBottom:20 },
+  card:{ padding:40, backgroundColor:"#FFF8ED", marginBottom:20, borderRadius: 10, borderColor: "#E4A8B8", borderWidth:5},
+  name:{ fontSize:24, fontWeight:'600' },
   center:{ flex:1, alignItems:'center', justifyContent:'center', padding:24 },
-  errTitle:{ fontSize:18, fontWeight:'700', marginBottom:8 },
+  errTitle:{ fontSize:24, fontWeight:'700', marginBottom:8 },
   errMsg:{ color:'#b00020', textAlign:'center', marginBottom:8 },
   hint:{ color:'#666', textAlign:'center' },
 });

@@ -340,33 +340,33 @@ const styles = StyleSheet.create({
   center:{ flex:1, alignItems:'center', justifyContent:'center', padding:24 },
   title:{ fontSize:22, fontWeight:'700', marginBottom:12 },
 
-  totalsBar:{ backgroundColor:'#f6f6f6', padding:10, borderRadius:10, marginBottom:12 },
+  totalsBar:{ backgroundColor:'#FFF8ED', padding:10, borderRadius:10, marginBottom:12 },
   totalsText:{ fontWeight:'700', color:'#222', textAlign:'center' },
   totalsBarOver:{ backgroundColor:'#fee2e2', borderColor:'#fecaca', borderWidth:1 },
   totalsTextOver:{ color:'#991b1b' },
 
   filterRow:{ flexDirection:'row', marginBottom:12, justifyContent:'center' },
   filterBtn:{ paddingVertical:6, paddingHorizontal:12, borderRadius:8, backgroundColor:'#ddd', marginHorizontal:4 },
-  filterBtnActive:{ backgroundColor:'#0f62fe' },
+  filterBtnActive:{ backgroundColor:'#E4A8B8' },
   filterText:{ color:'#333', fontWeight:'600' },
   filterTextActive:{ color:'#fff' },
 
-  searchInput:{ backgroundColor:'#fff', padding:10, borderRadius:8, marginBottom:12, borderColor:'#ccc', borderWidth:1 },
+  searchInput:{ backgroundColor:'#FFF8ED', padding:10, borderRadius:8, marginBottom:12, borderColor:'#ccc', borderWidth:1 },
 
   sortRow:{ flexDirection:'row', justifyContent:'center', marginBottom:12 },
   sortBtn:{ paddingVertical:6, paddingHorizontal:12, borderRadius:8, backgroundColor:'#ddd', marginHorizontal:4 },
-  sortBtnActive:{ backgroundColor:'#0f62fe' },
+  sortBtnActive:{ backgroundColor:'#E4A8B8' },
   sortText:{ color:'#333', fontWeight:'600' },
   sortTextActive:{ color:'#fff' },
 
-  card:{ padding:16, backgroundColor:'#e9f0ff', marginBottom:12, borderRadius:12 },
+  card:{ padding:16, backgroundColor:'#FFF8ED', marginBottom:12, borderRadius:12 },
   name:{ fontSize:18, fontWeight:'700', marginBottom:6 },
   line:{ color:'#333' },
 
-  secondaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center', alignSelf:'flex-start' },
+  secondaryBtn:{ backgroundColor:'#E4A8B8', paddingVertical:10, paddingHorizontal:14, borderRadius:10, alignItems:'center', alignSelf:'flex-start' },
   secondaryBtnText:{ color:'#fff', fontWeight:'700' },
 
-  primaryBtn:{ backgroundColor:'#0f62fe', paddingVertical:12, paddingHorizontal:16, borderRadius:10, alignItems:'center' },
+  primaryBtn:{ backgroundColor:'#E4A8B8', paddingVertical:12, paddingHorizontal:16, borderRadius:10, alignItems:'center' },
   primaryBtnText:{ color:'#fff', fontWeight:'700', textAlign:'center' },
 
   errTitle:{ fontSize:18, fontWeight:'700', marginBottom:8 },

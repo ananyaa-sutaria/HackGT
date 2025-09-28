@@ -288,9 +288,9 @@ async function onResetApi() {
 const s = StyleSheet.create({
   container:{ flex:1, padding:20, backgroundColor:'#B5DAAF' },
   center:{ flex:1, alignItems:'center', justifyContent:'center' },
-  title:{ fontSize:22, fontWeight:'800', marginBottom:16 },
+  title:{ fontSize:30, fontWeight:'800', marginBottom:16 },
 
-  card:{ backgroundColor:'#F8FAFC', borderRadius:12, padding:16, borderWidth:1, borderColor:'#E5E7EB', marginBottom:16 },
+  card:{ backgroundColor:'#FFF8ED', borderRadius:12, padding:16, borderWidth:1, borderColor:'#E5E7EB', marginBottom:16 },
   row:{ flexDirection:'row', alignItems:'center', gap:12 },
   rowBetween:{ flexDirection:'row', justifyContent:'space-between', alignItems:'center', marginTop:8 },
 
