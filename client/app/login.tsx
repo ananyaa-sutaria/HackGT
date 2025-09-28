@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { View, Text, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
+import { View, Text, ImageBackground, TextInput, Pressable, ActivityIndicator, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { loginApi } from '../src/lib/api';
 import { setToken } from '../src/lib/auth';
+import { FontAwesome } from '@expo/vector-icons';
+
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('demo@subsense.app');
@@ -24,34 +26,35 @@ export default function LoginScreen() {
   return (
     <View style={s.container}>
       <View style = {s.box}>
-      <Text style={s.title}>SubSense</Text>
-      <Text style={s.subtitle}>Sign in to continue</Text>
+        <Text style={s.title}>SubSense</Text>
+        <Text style={s.subtitle}>Sign in to continue</Text>
 
-      <TextInput
-        style={s.input} value={email} onChangeText={setEmail}
-        autoCapitalize="none" keyboardType="email-address" placeholder="Email"
-      />
-      <TextInput
-        style={s.input} value={pin} onChangeText={setPin}
-        secureTextEntry placeholder="PIN (try 4242)"
-      />
+        <TextInput
+          style={s.input} value={email} onChangeText={setEmail}
+          autoCapitalize="none" keyboardType="email-address" placeholder="Email"
+        />
+        <TextInput
+          style={s.input} value={pin} onChangeText={setPin}
+          secureTextEntry placeholder="PIN (try 4242)"
+        />
 
-      {err ? <Text style={s.err}>{err}</Text> : null}
+        {err ? <Text style={s.err}>{err}</Text> : null}
 
-      <Pressable style={s.btn} onPress={onLogin} disabled={loading}>
-        {loading ? <ActivityIndicator /> : <Text style={s.btnText}>Continue</Text>}
-      </Pressable>
+        <Pressable style={s.btn} onPress={onLogin} disabled={loading}>
+          {loading ? <ActivityIndicator /> : <Text style={s.btnText}>Continue</Text>}
+        </Pressable>
 
-      <Text style={s.hint}>Demo PIN is 4242 (configurable on the server)</Text>
+        <Text style={s.hint}>Demo PIN is 4242 (configurable on the server)</Text>
       </View>
     </View>
   );
 }
 
 const s = StyleSheet.create({
+  background: {flex:1},
   container:{ flex:1, padding:24, justifyContent:'center', backgroundColor:'#B5DAAF' },
   box:{backgroundColor: "#FFF8ED", borderRadius: 16, padding: 24},
-  title:{ color: "#B5DAAF", fontSize:28, fontWeight:'800', marginBottom:4 },
+  title:{ color: "#B5DAAF", fontSize:35, fontWeight:'800', marginBottom: 15 },
   subtitle:{ color:'#6B7280', marginBottom:16 },
   input:{backgroundColor: "#B5DAAF" , color:'#FFF8ED', borderWidth:1, borderColor:'#E4A8B8', borderRadius:10, padding:12, marginBottom:12 },
   btn:{ backgroundColor:'#E4A8B8', padding:14, borderRadius:10, alignItems:'center' },
