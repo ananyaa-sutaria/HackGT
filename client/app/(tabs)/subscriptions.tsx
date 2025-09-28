@@ -1,6 +1,6 @@
 // app/(tabs)/subscriptions.tsx
 import { useEffect, useState, useMemo, useCallback } from 'react';
-import { useLocalSearchParams, Link } from 'expo-router';
+import { useLocalSearchParams, Link, useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -10,11 +10,10 @@ import {
   ActivityIndicator,
   RefreshControl,
   Alert,
+  TextInput,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
-import { useFocusEffect } from 'expo-router';
-
 
 type Sub = {
   merchant: string;
@@ -33,6 +32,9 @@ export default function SubscriptionsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [budget, setBudget] = useState<number | null>(null);
+
+  const [filter, setFilter] = useState<'all' | 'monthly' | 'yearly'>('all');
+  const [search, setSearch] = useState('');
 
   // Load budget once
   useEffect(() => {
@@ -74,11 +76,9 @@ export default function SubscriptionsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      // refresh every time screen gains focus (after Cancel/Snooze)
       load();
     }, [load])
   );
-  
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -93,7 +93,16 @@ export default function SubscriptionsScreen() {
 
   const overBudget = budget != null && totals.monthly > budget;
 
-  // Demo seeding fallback (for judging)
+  // Apply filters + search
+  const filteredSubs = useMemo(() => {
+    return subs.filter((s) => {
+      if (filter !== 'all' && s.cadence !== filter) return false;
+      if (search.trim() && !s.merchant.toLowerCase().includes(search.toLowerCase())) return false;
+      return true;
+    });
+  }, [subs, filter, search]);
+
+  // Demo seeding fallback
   const handleSeed = useCallback(async () => {
     try {
       await provisionDemo();
@@ -132,10 +141,33 @@ export default function SubscriptionsScreen() {
         </Text>
       </View>
 
+      {/* Filters */}
+      <View style={styles.filterRow}>
+        {['all', 'monthly', 'yearly'].map((f) => (
+          <Pressable
+            key={f}
+            style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
+            onPress={() => setFilter(f as typeof filter)}
+          >
+            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
+              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
+      {/* Search Bar */}
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search subscriptions..."
+        value={search}
+        onChangeText={setSearch}
+      />
+
       <Text style={styles.title}>Detected Subscriptions</Text>
 
       <FlatList
-        data={subs}
+        data={filteredSubs}
         keyExtractor={(item, i) => `${item?.merchant ?? 'm'}-${i}`}
         renderItem={({ item }) => (
           <View style={styles.card}>
@@ -162,7 +194,7 @@ export default function SubscriptionsScreen() {
         )}
         ListEmptyComponent={
           <View style={{ alignItems: 'center', marginTop: 24 }}>
-            <Text>No subscriptions detected.</Text>
+            <Text>No subscriptions found.</Text>
             <Pressable onPress={handleSeed} style={[styles.primaryBtn, { marginTop: 12 }]}>
               <Text style={styles.primaryBtnText}>Create demo subscriptions</Text>
             </Pressable>
@@ -176,12 +208,10 @@ export default function SubscriptionsScreen() {
 }
 
 /* ---------- helpers ---------- */
-
 function cleanAmount(a: any) {
   if (typeof a === 'string') return Number(a.replace(/[^0-9.\-]/g, '')) || 0;
   return Number(a) || 0;
 }
-
 function toMonthly(amount: number, cadence?: string) {
   const c = (cadence || 'monthly').toLowerCase();
   switch (c) {
@@ -194,7 +224,6 @@ function toMonthly(amount: number, cadence?: string) {
     default:          return amount;
   }
 }
-
 function prettyCadence(c?: string) {
   const k = (c || 'monthly').toLowerCase();
   const map: Record<string, string> = {
@@ -207,7 +236,6 @@ function prettyCadence(c?: string) {
   };
   return map[k] || k;
 }
-
 function fmt(v: number) {
   try {
     return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 2 }).format(v);
@@ -226,6 +254,14 @@ const styles = StyleSheet.create({
   totalsText:{ fontWeight:'700', color:'#222', textAlign:'center' },
   totalsBarOver:{ backgroundColor:'#fee2e2', borderColor:'#fecaca', borderWidth:1 },
   totalsTextOver:{ color:'#991b1b' },
+
+  filterRow:{ flexDirection:'row', marginBottom:12, justifyContent:'center' },
+  filterBtn:{ paddingVertical:6, paddingHorizontal:12, borderRadius:8, backgroundColor:'#ddd', marginHorizontal:4 },
+  filterBtnActive:{ backgroundColor:'#0f62fe' },
+  filterText:{ color:'#333', fontWeight:'600' },
+  filterTextActive:{ color:'#fff' },
+
+  searchInput:{ backgroundColor:'#fff', padding:10, borderRadius:8, marginBottom:12, borderColor:'#ccc', borderWidth:1 },
 
   card:{ padding:16, backgroundColor:'#e9f0ff', marginBottom:12, borderRadius:12 },
   name:{ fontSize:18, fontWeight:'700', marginBottom:6 },
