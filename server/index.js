@@ -5,12 +5,17 @@ import morgan from 'morgan';
 
 import transactionsRouter from './routes/transactions.js';
 import subsenseRouter     from './routes/subsense.js';
-
-import authRouter         from './routes/auth.js';
+import authRouter from './routes/auth.js'; // only if you have it
 
 const app = express();
 
-/* CORS & parsers BEFORE routes */
+app.set('etag', false); // disable automatic ETags globally
+app.use((req, res, next) => {
+  // no caching for API responses
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate');
+  next();
+});
+
 app.use(cors({
   origin: true,
   methods: ['GET','POST','PUT','PATCH','DELETE','OPTIONS'],
@@ -20,15 +25,13 @@ app.options('*', cors());
 app.use(express.json());
 app.use(morgan('dev'));
 
-/* Health */
 app.get('/health', (_req, res) => res.json({ ok: true }));
 
-/* Routes */
 app.use('/api/transactions', transactionsRouter);
 app.use('/api/subsense',     subsenseRouter);
-app.use('/api/auth',         authRouter);           
-/* Listen */
-const PORT = process.env.PORT || 5050;
+app.use('/api/auth',         authRouter);
+
+const PORT = process.env.PORT || 5000;
 const HOST = process.env.HOST || '0.0.0.0';
 app.listen(PORT, HOST, () => {
   const hostForLog = HOST === '0.0.0.0' ? 'localhost' : HOST;
