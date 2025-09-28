@@ -14,7 +14,7 @@ type Sub = { merchant: string; amount: number | string; cadence?: Cadence; nextD
 
 /* ----------------- helpers ----------------- */
 const BUDGET_KEY = 'budget_monthly';
-const keyForAccount = (accountId?: string) => `subs_account_${accountId ?? 'unknown'}`;
+const keyForAccount = (accountId?: string, type?: 'checking'|'savings') => `subs_${type ?? 'checking'}_${accountId ?? 'unknown'}`;
 
 const cleanAmount = (a: any) =>
   typeof a === 'string' ? Number(a.replace(/[^0-9.\-]/g, '')) || 0 : Number(a) || 0;
@@ -45,8 +45,9 @@ const isoPlusDays = (days: number) => {
 
 /* ----------------- component ----------------- */
 export default function SubscriptionsScreen() {
-  const { accountId } = useLocalSearchParams<{ accountId?: string }>();
+  const { accountId, accountType: initialType } = useLocalSearchParams<{ accountId?: string, accountType?: string }>();
 
+  const [accountType, setAccountType] = useState<'checking' | 'savings'>(initialType === 'savings' ? 'savings' : 'checking');
   const [subs, setSubs] = useState<Sub[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -63,7 +64,7 @@ export default function SubscriptionsScreen() {
   const [newCadence, setNewCadence] = useState<Cadence>('monthly');
   const [newNextDate, setNewNextDate] = useState('');
 
-  // Load budget once
+  /* --------- Load budget --------- */
   useEffect(() => {
     (async () => {
       const b = await AsyncStorage.getItem(BUDGET_KEY);
@@ -71,7 +72,7 @@ export default function SubscriptionsScreen() {
     })();
   }, []);
 
-  // Load subscriptions for this account from local storage
+  /* --------- Load subscriptions --------- */
   const load = useCallback(async () => {
     if (!accountId) {
       setLoading(false);
@@ -80,74 +81,61 @@ export default function SubscriptionsScreen() {
     }
     try {
       setError(null);
-      const stored = await AsyncStorage.getItem(keyForAccount(accountId));
+      const stored = await AsyncStorage.getItem(keyForAccount(accountId, accountType));
       const parsed = stored ? JSON.parse(stored) : [];
-      const clean: Sub[] = (Array.isArray(parsed) ? parsed : []).map((s: any) => ({
+
+      // For checking, allow adding new subs; for savings, generate demo if empty
+      let cleanSubs: Sub[] = (Array.isArray(parsed) ? parsed : []).map((s: any) => ({
         merchant: s?.merchant ?? 'Unknown',
         amount: cleanAmount(s?.amount),
-        cadence: (s?.cadence === 'yearly' ? 'yearly' : 'monthly') as Cadence,
+        cadence: s?.cadence === 'yearly' ? 'yearly' : 'monthly',
         nextDate: s?.nextDate,
       }));
-      setSubs(clean);
+
+      if (accountType === 'savings' && cleanSubs.length === 0) {
+        // Generate and persist demo savings subs
+        cleanSubs = generateSavingsDemoSubs();
+        await AsyncStorage.setItem(keyForAccount(accountId, 'savings'), JSON.stringify(cleanSubs));
+      }
+
+      setSubs(cleanSubs);
     } catch (e: any) {
       setError(e?.message || 'Failed to load subscriptions');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [accountId]);
+  }, [accountId, accountType]);
 
   useEffect(() => { setLoading(true); load(); }, [load]);
   useFocusEffect(useCallback(() => { load(); }, [load]));
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
-  // Optimistic bus listeners
-  useEffect(() => {
-    if (!accountId) return;
-    const acct = String(accountId);
-
-    const save = async (next: Sub[]) =>
-      AsyncStorage.setItem(keyForAccount(acct), JSON.stringify(next)).catch(() => {});
-
-    const offCancel = on('sub:cancelled', (p: any) => {
-      if (p?.accountId !== acct) return;
-      const k = toKey(p.merchant, p.amount);
-      setSubs(prev => {
-        const next = prev.filter(s => toKey(s.merchant, cleanAmount(s.amount)) !== k);
-        save(next);
-        return next;
-      });
+  /* --------- Generate demo savings --------- */
+  const generateSavingsDemoSubs = useCallback((): Sub[] => {
+    const merchants = [
+      'Netflix', 'Spotify', 'Hulu', 'Amazon Prime', 'Disney+', 'YouTube Premium',
+      'Apple Music', 'HBO Max', 'Adobe Creative Cloud', 'Canva Pro', 'Dropbox', 'Notion'
+    ];
+    return Array.from({ length: 20 }, () => {
+      const merchant = merchants[Math.floor(Math.random() * merchants.length)];
+      const amount = (Math.random() * 50 + 5).toFixed(2);
+      const cadence: Cadence = Math.random() > 0.7 ? 'yearly' : 'monthly';
+      const nextDate = isoPlusDays(Math.floor(Math.random() * 60));
+      return { merchant, amount, cadence, nextDate };
     });
+  }, []);
 
-    const offResume = on('sub:resumed', (p: any) => {
-      if (p?.accountId !== acct) return;
-      load(); // simplest: refetch
-    });
-
-    const offSnooze = on('sub:snoozed', (p: any) => {
-      if (p?.accountId !== acct) return;
-      const k = toKey(p.merchant, p.amount);
-      setSubs(prev => {
-        const next = prev.map(s =>
-          toKey(s.merchant, cleanAmount(s.amount)) === k ? { ...s, nextDate: p?.nextDate } : s
-        );
-        save(next);
-        return next;
-      });
-    });
-
-    return () => { offCancel(); offResume(); offSnooze(); };
-  }, [accountId, load]);
-
-  // Totals
+  /* --------- Totals --------- */
   const totals = useMemo(() => {
     const monthly = subs.reduce((sum, s) => sum + toMonthly(cleanAmount(s.amount), s.cadence), 0);
     return { monthly, annual: monthly * 12 };
   }, [subs]);
   const overBudget = budget != null && totals.monthly > budget;
 
-  // Filtering/search/sort
+  /* --------- Filtering/search/sort --------- */
   const filteredSubs = useMemo(() => {
+    if (accountType === 'savings') return subs;
     let list = subs.filter((s) => {
       if (filter !== 'all' && s.cadence !== filter) return false;
       if (search.trim() && !s.merchant.toLowerCase().includes(search.toLowerCase())) return false;
@@ -160,23 +148,9 @@ export default function SubscriptionsScreen() {
       });
     }
     return list;
-  }, [subs, filter, search, sortOrder]);
+  }, [subs, accountType, filter, search, sortOrder]);
 
-  // Local demo seeding
-  const handleSeed = useCallback(async () => {
-    if (!accountId) return;
-    const sample: Sub[] = [
-      { merchant: 'Netflix',  amount: 15.99, cadence: 'monthly', nextDate: isoPlusDays(12) },
-      { merchant: 'Spotify',  amount: 9.99,  cadence: 'monthly', nextDate: isoPlusDays(20) },
-      { merchant: 'Prime',    amount: 139,   cadence: 'yearly',  nextDate: isoPlusDays(50) },
-    ];
-    await AsyncStorage.setItem(keyForAccount(accountId), JSON.stringify(sample));
-    await load();
-    Alert.alert('Demo created', 'Seeded sample subscriptions for this account.');
-  }, [accountId, load]);
-
-  // Add new subscription (locally)
-  const [modalOpen, setModalOpen] = useState(false);
+  /* --------- Add new subscription (checking only) --------- */
   const handleAddSubscription = async () => {
     if (!accountId) return;
     if (!newMerchant.trim() || !newAmount.trim()) {
@@ -190,101 +164,108 @@ export default function SubscriptionsScreen() {
     };
     const updated = [...subs, newSub];
     setSubs(updated);
-    try { await AsyncStorage.setItem(keyForAccount(accountId), JSON.stringify(updated)); }
+    try { await AsyncStorage.setItem(keyForAccount(accountId, 'checking'), JSON.stringify(updated)); }
     catch { Alert.alert('Error', 'Failed to save subscription.'); }
     setModalVisible(false);
     setNewMerchant(''); setNewAmount(''); setNewNextDate(''); setNewCadence('monthly');
   };
 
+  /* --------- Render --------- */
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
-  if (error) {
-    return (
-      <View style={styles.center}>
-        <Text style={styles.errTitle}>Couldn’t load subscriptions</Text>
-        <Text style={styles.errMsg}>{error}</Text>
-        <Pressable style={styles.primaryBtn} onPress={load}>
-          <Text style={styles.primaryBtnText}>Retry</Text>
-        </Pressable>
-      </View>
-    );
-  }
+  if (error) return (
+    <View style={styles.center}>
+      <Text style={styles.errTitle}>Couldn’t load subscriptions</Text>
+      <Text style={styles.errMsg}>{error}</Text>
+      <Pressable style={styles.primaryBtn} onPress={load}>
+        <Text style={styles.primaryBtnText}>Retry</Text>
+      </Pressable>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
-      {/* Totals */}
-      <View style={[styles.totalsBar, overBudget && styles.totalsBarOver]}>
-        <Text style={[styles.totalsText, overBudget && styles.totalsTextOver]}>
-          Total: {fmt(totals.monthly)} / mo  ({fmt(totals.annual)} / yr)
-          {budget != null ? `  •  Budget: $${(budget ?? 0).toFixed(2)}` : ''}
-        </Text>
-      </View>
 
-      {/* Filters */}
-      <View style={styles.filterRow}>
-        {['all', 'monthly', 'yearly'].map((f) => (
+      {/* Account type toggle */}
+      <View style={{flexDirection:'row', justifyContent:'center', marginBottom:12}}>
+        {['checking','savings'].map((type) => (
           <Pressable
-            key={f}
-            style={[styles.filterBtn, filter === f && styles.filterBtnActive]}
-            onPress={() => setFilter(f as typeof filter)}
+            key={type}
+            style={[styles.filterBtn, accountType === type && styles.filterBtnActive]}
+            onPress={()=>setAccountType(type as 'checking'|'savings')}
           >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>
-              {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+            <Text style={[styles.filterText, accountType===type && styles.filterTextActive]}>
+              {type.charAt(0).toUpperCase()+type.slice(1)}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      {/* Search */}
-      <TextInput
-        style={styles.searchInput}
-        placeholder="Search subscriptions..."
-        value={search}
-        onChangeText={setSearch}
-      />
-
-      {/* Sort */}
-      <View style={styles.sortRow}>
-        <Pressable
-          style={[styles.sortBtn, sortOrder === 'asc' && styles.sortBtnActive]}
-          onPress={() => setSortOrder(sortOrder === 'asc' ? 'none' : 'asc')}
-        >
-          <Text style={[styles.sortText, sortOrder === 'asc' && styles.sortTextActive]}>
-            Low → High
-          </Text>
-        </Pressable>
-        <Pressable
-          style={[styles.sortBtn, sortOrder === 'desc' && styles.sortBtnActive]}
-          onPress={() => setSortOrder(sortOrder === 'desc' ? 'none' : 'desc')}
-        >
-          <Text style={[styles.sortText, sortOrder === 'desc' && styles.sortTextActive]}>
-            High → Low
-          </Text>
-        </Pressable>
+      {/* Totals */}
+      <View style={[styles.totalsBar, overBudget && styles.totalsBarOver]}>
+        <Text style={[styles.totalsText, overBudget && styles.totalsTextOver]}>
+          Total: {fmt(totals.monthly)} / mo ({fmt(totals.annual)} / yr)
+          {budget!=null ? `  •  Budget: $${budget.toFixed(2)}` : ''}
+        </Text>
       </View>
 
-      {/* Add New */}
-      <Pressable style={[styles.primaryBtn, { marginBottom: 12 }]} onPress={() => setModalVisible(true)}>
-        <Text style={styles.primaryBtnText}>Add New Subscription</Text>
-      </Pressable>
+      {/* Filters/search/sort (checking only) */}
+      {accountType === 'checking' && (
+        <>
+          <View style={styles.filterRow}>
+            {['all','monthly','yearly'].map(f=>(
+              <Pressable key={f} style={[styles.filterBtn, filter===f && styles.filterBtnActive]} onPress={()=>setFilter(f as typeof filter)}>
+                <Text style={[styles.filterText, filter===f && styles.filterTextActive]}>
+                  {f==='all' ? 'All' : f.charAt(0).toUpperCase()+f.slice(1)}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
 
-      <Text style={styles.title}>Detected Subscriptions</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search subscriptions..."
+            value={search}
+            onChangeText={setSearch}
+          />
+
+          <View style={styles.sortRow}>
+            <Pressable
+              style={[styles.sortBtn, sortOrder==='asc' && styles.sortBtnActive]}
+              onPress={()=>setSortOrder(sortOrder==='asc'?'none':'asc')}
+            >
+              <Text style={[styles.sortText, sortOrder==='asc' && styles.sortTextActive]}>Low → High</Text>
+            </Pressable>
+            <Pressable
+              style={[styles.sortBtn, sortOrder==='desc' && styles.sortBtnActive]}
+              onPress={()=>setSortOrder(sortOrder==='desc'?'none':'desc')}
+            >
+              <Text style={[styles.sortText, sortOrder==='desc' && styles.sortTextActive]}>High → Low</Text>
+            </Pressable>
+          </View>
+
+          <Pressable style={[styles.primaryBtn,{marginBottom:12}]} onPress={()=>setModalVisible(true)}>
+            <Text style={styles.primaryBtnText}>Add New Subscription</Text>
+          </Pressable>
+        </>
+      )}
+
+      <Text style={styles.title}>
+        {accountType==='checking'?'Detected Subscriptions':'Demo Savings Subscriptions'}
+      </Text>
 
       <FlatList
         data={filteredSubs}
-        keyExtractor={(item, i) => `${item?.merchant ?? 'm'}-${i}`}
-        renderItem={({ item }) => (
+        keyExtractor={(item,i)=>`${accountType}-${item.merchant}-${i}`}
+        renderItem={({item})=>(
           <View style={styles.card}>
             <Text style={styles.name}>{item.merchant}</Text>
-            <Text style={styles.line}>
-              {fmt(cleanAmount(item.amount))} / {prettyCadence(item.cadence)}
-            </Text>
-            {item.nextDate ? <Text style={styles.line}>Next: {item.nextDate}</Text> : null}
-
-            <View style={{ marginTop: 10 }}>
+            <Text style={styles.line}>{fmt(cleanAmount(item.amount))} / {prettyCadence(item.cadence)}</Text>
+            {item.nextDate && <Text style={styles.line}>Next: {item.nextDate}</Text>}
+            <View style={{marginTop:10}}>
               <Link
                 href={{
-                  pathname: '/subscriptionDetail',
-                  params: { accountId: String(accountId ?? ''), sub: JSON.stringify(item) },
+                  pathname:'/subscriptionDetail',
+                  params:{accountId: String(accountId ?? ''), sub: JSON.stringify(item)}
                 }}
                 asChild
               >
@@ -296,45 +277,59 @@ export default function SubscriptionsScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <View style={{ alignItems: 'center', marginTop: 24 }}>
+          <View style={{alignItems:'center', marginTop:24}}>
             <Text>No subscriptions found.</Text>
-            <Pressable onPress={handleSeed} style={[styles.primaryBtn, { marginTop: 12 }]}>
-              <Text style={styles.primaryBtnText}>Create demo subscriptions</Text>
-            </Pressable>
+            {accountType==='checking' && (
+              <Pressable style={[styles.primaryBtn,{marginTop:12}]} onPress={async()=>{
+                const demo = [
+                  { merchant: 'Netflix', amount: 15.99, cadence: 'monthly', nextDate: isoPlusDays(12) },
+                  { merchant: 'Spotify', amount: 9.99, cadence: 'monthly', nextDate: isoPlusDays(20) },
+                  { merchant: 'Prime', amount: 139, cadence: 'yearly', nextDate: isoPlusDays(50) },
+                ];
+                await AsyncStorage.setItem(keyForAccount(accountId,'checking'), JSON.stringify(demo));
+                load();
+                Alert.alert('Demo created','Seeded sample subscriptions for this account.');
+              }}>
+                <Text style={styles.primaryBtnText}>Create demo subscriptions</Text>
+              </Pressable>
+            )}
           </View>
         }
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
-        contentContainerStyle={{ paddingBottom: 20 }}
+        contentContainerStyle={{paddingBottom:20}}
       />
 
-      {/* Modal */}
-      <Modal visible={modalVisible} animationType="slide" transparent>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <Text style={styles.title}>New Subscription</Text>
-            <TextInput placeholder="Merchant" style={styles.modalInput} value={newMerchant} onChangeText={setNewMerchant}/>
-            <TextInput placeholder="Amount" style={styles.modalInput} value={newAmount} onChangeText={setNewAmount} keyboardType="numeric"/>
-            <TextInput placeholder="Next Due Date (YYYY-MM-DD)" style={styles.modalInput} value={newNextDate} onChangeText={setNewNextDate}/>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 }}>
-              {(['monthly','yearly'] as Cadence[]).map((c) => (
-                <Pressable key={c} style={[styles.filterBtn, newCadence === c && styles.filterBtnActive]} onPress={() => setNewCadence(c)}>
-                  <Text style={[styles.filterText, newCadence === c && styles.filterTextActive]}>
-                    {c.charAt(0).toUpperCase() + c.slice(1)}
-                  </Text>
+      {/* Add modal (checking only) */}
+      {accountType==='checking' && (
+        <Modal visible={modalVisible} animationType="slide" transparent>
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContainer}>
+              <Text style={styles.title}>New Subscription</Text>
+              <TextInput placeholder="Merchant" style={styles.modalInput} value={newMerchant} onChangeText={setNewMerchant}/>
+              <TextInput placeholder="Amount" style={styles.modalInput} value={newAmount} onChangeText={setNewAmount} keyboardType="numeric"/>
+              <TextInput placeholder="Next Due Date (YYYY-MM-DD)" style={styles.modalInput} value={newNextDate} onChangeText={setNewNextDate}/>
+              <View style={{flexDirection:'row', justifyContent:'space-between', marginTop:12}}>
+                {(['monthly','yearly'] as Cadence[]).map(c=>(
+                  <Pressable key={c} style={[styles.filterBtn, newCadence===c && styles.filterBtnActive]} onPress={()=>setNewCadence(c)}>
+                    <Text style={[styles.filterText, newCadence===c && styles.filterTextActive]}>
+                      {c.charAt(0).toUpperCase()+c.slice(1)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              <View style={{flexDirection:'row', justifyContent:'space-between', marginTop:16}}>
+                <Pressable style={[styles.primaryBtn,{flex:1,marginRight:4}]} onPress={handleAddSubscription}>
+                  <Text style={styles.primaryBtnText}>Save</Text>
                 </Pressable>
-              ))}
-            </View>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
-              <Pressable style={[styles.primaryBtn, { flex: 1, marginRight: 4 }]} onPress={handleAddSubscription}>
-                <Text style={styles.primaryBtnText}>Save</Text>
-              </Pressable>
-              <Pressable style={[styles.secondaryBtn, { flex: 1, marginLeft: 4 }]} onPress={() => setModalVisible(false)}>
-                <Text style={styles.secondaryBtnText}>Cancel</Text>
-              </Pressable>
+                <Pressable style={[styles.secondaryBtn,{flex:1,marginLeft:4}]} onPress={()=>setModalVisible(false)}>
+                  <Text style={styles.secondaryBtnText}>Cancel</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
+      )}
+
     </View>
   );
 }
