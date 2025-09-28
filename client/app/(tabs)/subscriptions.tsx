@@ -18,7 +18,7 @@ import { scanSubscriptions, provisionDemo } from '../../src/lib/api';
 type Sub = {
   merchant: string;
   amount: number | string;
-  cadence?: string;   // 'monthly' | 'yearly' | 'weekly' | 'biweekly' | 'quarterly' | etc.
+  cadence?: string;
   nextDate?: string;
 };
 
@@ -35,6 +35,7 @@ export default function SubscriptionsScreen() {
 
   const [filter, setFilter] = useState<'all' | 'monthly' | 'yearly'>('all');
   const [search, setSearch] = useState('');
+  const [sortOrder, setSortOrder] = useState<'none' | 'asc' | 'desc'>('none');
 
   // Load budget once
   useEffect(() => {
@@ -93,14 +94,23 @@ export default function SubscriptionsScreen() {
 
   const overBudget = budget != null && totals.monthly > budget;
 
-  // Apply filters + search
+  // Apply filters + search + sort
   const filteredSubs = useMemo(() => {
-    return subs.filter((s) => {
+    let list = subs.filter((s) => {
       if (filter !== 'all' && s.cadence !== filter) return false;
       if (search.trim() && !s.merchant.toLowerCase().includes(search.toLowerCase())) return false;
       return true;
     });
-  }, [subs, filter, search]);
+
+    if (sortOrder !== 'none') {
+      list = [...list].sort((a, b) => {
+        const amtA = cleanAmount(a.amount);
+        const amtB = cleanAmount(b.amount);
+        return sortOrder === 'asc' ? amtA - amtB : amtB - amtA;
+      });
+    }
+    return list;
+  }, [subs, filter, search, sortOrder]);
 
   // Demo seeding fallback
   const handleSeed = useCallback(async () => {
@@ -108,7 +118,10 @@ export default function SubscriptionsScreen() {
       await provisionDemo();
       await load();
       if (!subs.length) {
-        Alert.alert('Demo created', 'Seeded sample subscriptions. If this account is empty, switch to your Checking account.');
+        Alert.alert(
+          'Demo created',
+          'Seeded sample subscriptions. If this account is empty, switch to your Checking account.'
+        );
       }
     } catch (e: any) {
       Alert.alert('Seed failed', e?.message || 'Please try again.');
@@ -163,6 +176,26 @@ export default function SubscriptionsScreen() {
         value={search}
         onChangeText={setSearch}
       />
+
+      {/* Sort Buttons */}
+      <View style={styles.sortRow}>
+        <Pressable
+          style={[styles.sortBtn, sortOrder === 'asc' && styles.sortBtnActive]}
+          onPress={() => setSortOrder(sortOrder === 'asc' ? 'none' : 'asc')}
+        >
+          <Text style={[styles.sortText, sortOrder === 'asc' && styles.sortTextActive]}>
+            Low → High
+          </Text>
+        </Pressable>
+        <Pressable
+          style={[styles.sortBtn, sortOrder === 'desc' && styles.sortBtnActive]}
+          onPress={() => setSortOrder(sortOrder === 'desc' ? 'none' : 'desc')}
+        >
+          <Text style={[styles.sortText, sortOrder === 'desc' && styles.sortTextActive]}>
+            High → Low
+          </Text>
+        </Pressable>
+      </View>
 
       <Text style={styles.title}>Detected Subscriptions</Text>
 
@@ -262,6 +295,12 @@ const styles = StyleSheet.create({
   filterTextActive:{ color:'#fff' },
 
   searchInput:{ backgroundColor:'#fff', padding:10, borderRadius:8, marginBottom:12, borderColor:'#ccc', borderWidth:1 },
+
+  sortRow:{ flexDirection:'row', justifyContent:'center', marginBottom:12 },
+  sortBtn:{ paddingVertical:6, paddingHorizontal:12, borderRadius:8, backgroundColor:'#ddd', marginHorizontal:4 },
+  sortBtnActive:{ backgroundColor:'#0f62fe' },
+  sortText:{ color:'#333', fontWeight:'600' },
+  sortTextActive:{ color:'#fff' },
 
   card:{ padding:16, backgroundColor:'#e9f0ff', marginBottom:12, borderRadius:12 },
   name:{ fontSize:18, fontWeight:'700', marginBottom:6 },
