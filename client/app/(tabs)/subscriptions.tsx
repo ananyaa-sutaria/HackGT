@@ -375,4 +375,5 @@ const styles = StyleSheet.create({
   modalOverlay:{ flex:1, justifyContent:'center', alignItems:'center', backgroundColor:'rgba(0,0,0,0.5)' },
   modalContainer:{ width:'90%', backgroundColor:'#fff', borderRadius:12, padding:16 },
   modalInput:{ borderWidth:1, borderColor:'#ccc', borderRadius:8, padding:10, marginTop:8 },
+//please work!
 });
