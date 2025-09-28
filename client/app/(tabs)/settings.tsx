@@ -259,13 +259,7 @@ export default function Settings() {
   </Pressable>
 </View>
 
-      <View style={s.card}>
-        <Text style={s.sectionTitle}>Diagnostics</Text>
-        <Row label="API base" value={API_BASE || '(unset)'} />
-        <Pressable onPress={onPing} style={[s.outlineBtn, { marginTop:8 }]}>
-          <Text style={s.outlineBtnText}>Ping API</Text>
-        </Pressable>
-      </View>
+    
 
       {/* Logout */}
       <Pressable onPress={onLogout} disabled={loggingOut} style={[s.logoutBtn, loggingOut && { opacity:0.6 }]}>
