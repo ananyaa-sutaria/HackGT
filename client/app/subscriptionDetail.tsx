@@ -7,6 +7,8 @@ import {
   resumeSubscription,
   snoozeSubscription,
 } from '../src/lib/api';
+import { emit } from '../src/lib/bus';
+
 
 type Sub = {
   merchant?: string;
@@ -45,55 +47,42 @@ export default function SubscriptionDetail() {
   }, [subData]);
 
   async function onCancel() {
-    if (!accountId || !subData?.merchant) {
-      return Alert.alert('Missing info', 'No account or merchant found.');
-    }
-    try {
-      await cancelSubscription({
-        accountId: String(accountId),
-        merchant: subData.merchant!,
-        amount: cleanAmount(subData.amount),
-      });
-      Alert.alert('Cancelled', `${subData.merchant} has been cancelled.`);
-      router.back();
-    } catch (e: any) {
-      Alert.alert('Cancel failed', e?.message || 'Please try again.');
-    }
+    if (!accountId || !subData?.merchant) return Alert.alert('Missing info');
+    const amt = Number(String(subData.amount).replace(/[^0-9.\-]/g,'')) || 0;
+  
+    await cancelSubscription({ accountId: String(accountId), merchant: subData.merchant!, amount: amt });
+  
+    // 🔔 Optimistic update
+    emit('sub:cancelled', { accountId: String(accountId), merchant: subData.merchant!, amount: amt });
+  
+    Alert.alert('Cancelled', `${subData.merchant} removed.`);
+    router.back();
   }
-
+  
   async function onResume() {
-    if (!accountId || !subData?.merchant) {
-      return Alert.alert('Missing info', 'No account or merchant found.');
-    }
-    try {
-      await resumeSubscription({
-        accountId: String(accountId),
-        merchant: subData.merchant!,
-        amount: cleanAmount(subData.amount),
-      });
-      Alert.alert('Re-subscribed', `${subData.merchant} has been re-enabled.`);
-      router.back();
-    } catch (e: any) {
-      Alert.alert('Resume failed', e?.message || 'Please try again.');
-    }
+    if (!accountId || !subData?.merchant) return Alert.alert('Missing info');
+    const amt = Number(String(subData.amount).replace(/[^0-9.\-]/g,'')) || 0;
+  
+    await resumeSubscription({ accountId: String(accountId), merchant: subData.merchant!, amount: amt });
+  
+    // Optional: optimistic add back (your list will also refetch)
+    emit('sub:resumed', { accountId: String(accountId), merchant: subData.merchant!, amount: amt });
+  
+    Alert.alert('Re-subscribed', `${subData.merchant} re-enabled.`);
+    router.back();
   }
-
+  
   async function onSnooze() {
-    if (!accountId || !subData?.merchant) {
-      return Alert.alert('Missing info', 'No account or merchant found.');
-    }
-    try {
-      const r = await snoozeSubscription({
-        accountId: String(accountId),
-        merchant: subData.merchant!,
-        amount: cleanAmount(subData.amount),
-        days: 30,
-      });
-      Alert.alert('Snoozed', `Next charge pushed to ${r?.nextDate || 'later'}.`);
-      router.back();
-    } catch (e: any) {
-      Alert.alert('Snooze failed', e?.message || 'Please try again.');
-    }
+    if (!accountId || !subData?.merchant) return Alert.alert('Missing info');
+    const amt = Number(String(subData.amount).replace(/[^0-9.\-]/g,'')) || 0;
+  
+    const r = await snoozeSubscription({ accountId: String(accountId), merchant: subData.merchant!, amount: amt, days: 30 });
+  
+    // Optional: optimistic nextDate update
+    emit('sub:snoozed', { accountId: String(accountId), merchant: subData.merchant!, amount: amt, nextDate: r?.nextDate });
+  
+    Alert.alert('Snoozed', `Next charge pushed to ${r?.nextDate || 'later'}.`);
+    router.back();
   }
 
   if (!subData) {
