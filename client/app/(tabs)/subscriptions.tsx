@@ -60,17 +60,25 @@ export default function SubscriptionsScreen() {
     }
     try {
       setError(null);
-      const data = await scanSubscriptions(String(accountId));
-      const clean = (Array.isArray(data) ? data : []).map((s: any) => ({
+      const storedSubs = await AsyncStorage.getItem(`subs_account_${accountId}`);
+      if(!storedSubs){
+        setSubs([]);
+        return;
+      }
+    
+    
+    const subsData = JSON.parse(storedSubs); 
+    const clean = Array.isArray(subsData) ? subsData.map((s: any) => ({
         merchant: s?.merchant ?? 'Unknown',
         amount: cleanAmount(s?.amount),
         cadence: (s?.cadence === 'yearly' ? 'yearly' : 'monthly') as 'monthly' | 'yearly',
         nextDate: s?.nextDate,
-      })) as Sub[];
+      })) : [];
       setSubs(clean);
     } catch (e: any) {
       setError(e?.message || 'Failed to load subscriptions');
-    } finally {
+    }
+    finally {
       setLoading(false);
       setRefreshing(false);
     }
@@ -81,7 +89,6 @@ export default function SubscriptionsScreen() {
     load();
   }, [load]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
   const onRefresh = useCallback(() => { setRefreshing(true); load(); }, [load]);
 
   const totals = useMemo(() => {
@@ -123,7 +130,7 @@ export default function SubscriptionsScreen() {
     }
   }, [load, subs.length]);
 
-  const handleAddSubscription = () => {
+  const handleAddSubscription = async () => {
     if (!newMerchant.trim() || !newAmount.trim()) {
       return Alert.alert('Missing info', 'Please provide merchant name and amount.');
     }
@@ -133,13 +140,24 @@ export default function SubscriptionsScreen() {
       cadence: newCadence,
       nextDate: newNextDate || undefined,
     };
-    setSubs((prev) => [...prev, newSub]);
+
+    const updatedSubs = [...subs, newSub];
+    setSubs(updatedSubs);
+
+    try{
+      await AsyncStorage.setItem(`subs_account_${accountId}`, JSON.stringify(updatedSubs));
+    } catch(e){
+      Alert.alert('Error', 'Failed to save subscription.')
+    }
+
+    // setSubs((prev) => [...prev, newSub]);
     setModalVisible(false);
     setNewMerchant('');
     setNewAmount('');
     setNewNextDate('');
     setNewCadence('monthly');
   };
+
 
   if (loading) return <View style={styles.center}><ActivityIndicator size="large" /></View>;
 
